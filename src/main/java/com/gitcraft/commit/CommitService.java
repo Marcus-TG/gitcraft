@@ -1,0 +1,107 @@
+package com.gitcraft.commit;
+
+import com.gitcraft.GitCraft;
+import com.gitcraft.database.CommitDao;
+import com.gitcraft.database.CommitRecord;
+import com.gitcraft.export.SchematicExporter;
+import com.gitcraft.util.Messages;
+import com.sk89q.worldedit.WorldEditException;
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.math.BlockVector3;
+import org.bukkit.Bukkit;
+import org.bukkit.World;
+import org.bukkit.entity.Player;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.SQLException;
+import java.util.UUID;
+import java.util.logging.Level;
+
+/**
+ * Owns the async commit pipeline: write schematic, insert metadata row, send feedback.
+ * On DB failure after a successful schematic write, best-effort delete the orphan file.
+ */
+public final class CommitService {
+
+    private final GitCraft plugin;
+    private final SchematicExporter exporter;
+    private final CommitDao commitDao;
+
+    public CommitService(GitCraft plugin, SchematicExporter exporter, CommitDao commitDao) {
+        this.plugin = plugin;
+        this.exporter = exporter;
+        this.commitDao = commitDao;
+    }
+
+    public void commitAsync(UUID playerId,
+                            String playerName,
+                            String regionName,
+                            String message,
+                            World bukkitWorld,
+                            BlockVector3 pos1,
+                            BlockVector3 pos2,
+                            Path schemPath) {
+        // adapt() must run on the main thread.
+        com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(bukkitWorld);
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            boolean schemWritten = false;
+            try {
+                exporter.writeSchematic(weWorld, pos1, pos2, schemPath);
+                schemWritten = true;
+
+                long createdAt = System.currentTimeMillis();
+                long id = commitDao.insert(new CommitRecord(
+                        null, playerId, playerName, regionName, message,
+                        schemPath.toString(), createdAt));
+
+                sendOnMain(playerId, String.format(Messages.COMMIT_SUCCESS, id, regionName));
+                plugin.getLogger().info("Commit " + id + " saved (region=" + regionName
+                        + ", player=" + playerName + ")");
+
+            } catch (IOException e) {
+                plugin.getLogger().log(Level.WARNING, "Schematic IO error", e);
+                sendOnMain(playerId, String.format(Messages.COMMIT_IO_FAILED, safe(e.getMessage())));
+            } catch (WorldEditException e) {
+                plugin.getLogger().log(Level.WARNING, "WorldEdit commit error", e);
+                sendOnMain(playerId, String.format(Messages.COMMIT_WE_FAILED, safe(e.getMessage())));
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "Commit DB insert failed", e);
+                if (schemWritten) {
+                    deleteOrphan(schemPath);
+                }
+                sendOnMain(playerId, String.format(Messages.COMMIT_DB_FAILED, safe(e.getMessage())));
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.WARNING, "Unexpected commit error", e);
+                if (schemWritten) {
+                    deleteOrphan(schemPath);
+                }
+                sendOnMain(playerId, String.format(Messages.COMMIT_WE_FAILED, safe(e.getMessage())));
+            }
+        });
+    }
+
+    private void deleteOrphan(Path schemPath) {
+        try {
+            Files.deleteIfExists(schemPath);
+        } catch (IOException io) {
+            plugin.getLogger().log(Level.WARNING,
+                    "Failed to delete orphan schematic at " + schemPath, io);
+        }
+    }
+
+    private void sendOnMain(UUID playerId, String message) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            Player p = Bukkit.getPlayer(playerId);
+            if (p != null && p.isOnline()) {
+                p.sendMessage(message);
+            }
+        });
+    }
+
+    private static String safe(String s) {
+        return s == null ? "(no detail)" : s;
+    }
+}

@@ -12,7 +12,6 @@ storage:
 
 database:
   # SQLite database file. Relative paths resolve against the plugin data folder.
-  # Reserved for Phase 2+. Unused in Phase 1.
   file: gitcraft.db
 
 # Reserved for Phase 3+. Ignored in Phase 1.

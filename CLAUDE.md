@@ -15,28 +15,34 @@ You are building **GitCraft**, a Paper Minecraft plugin + self-hosted web backen
 ## Hard Constraints
 
 ### Platform
+
 - **Paper API only.** No Spigot, Bukkit, Fabric, or Forge patterns.
 - Target: **Paper 1.21.4**, **Java 21**
 - Build tool: **Gradle** (not Maven, ever)
 - If you're unsure whether an API is Paper-specific, check Paper's Javadoc — do not guess
 
 ### Threading — The Most Important Rule
+
 - **Never touch the database or filesystem from the main thread.**
 - Event handlers fire on the main thread. They must be thin: capture data, hand off, return.
 - All SQLite reads and writes must be dispatched via Paper's async scheduler:
+
   ```java
   Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
       // database work here
   });
   ```
+
 - Violations cause server lag. This will not be obvious at low player counts and will be a nightmare to debug later. Get it right from the start.
 
 ### Schematics
+
 - Format: `.schem` — **Sponge Schematic format (v2/v3)**. Not `.schematic` (legacy MCEdit). Not `.nbt`. Not anything else.
 - Schematic export uses the **WorldEdit API** as a library dependency. Do not write a custom schematic serializer.
 - Block entities (chests, spawners, signs, etc.) are **excluded** from schematics unless explicitly told otherwise. We capture structure, not contents.
 
 ### Database
+
 - **SQLite only**, embedded. No separate database container, no network database.
 - All schema definitions live in a single migration file. No inline `CREATE TABLE` scattered through the codebase.
 - Player identity is always stored as **UUID**, never username. Usernames change.
@@ -71,14 +77,17 @@ Do not create files outside this structure without asking first.
 ## Data Model
 
 ### What we track (and what we don't)
+
 GitCraft is **not** a block-change audit log. We do not record every block placement and break.
 
 A "commit" in GitCraft is:
+
 - A `.schem` snapshot of a player-selected region
 - Metadata: who committed (player UUID), when (Unix timestamp in milliseconds), commit message
 - Stored and versioned via Gitea on the backend (Phase 4+)
 
 ### Core SQLite Schema (Phase 1–2)
+
 ```sql
 CREATE TABLE IF NOT EXISTS commits (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,7 +106,7 @@ This schema is append-only. Do not modify committed rows.
 
 ## Scope
 
-**Current phase: 1 of 5.** Do not implement features beyond the current phase. Full roadmap lives in README.md.
+**Current phase: 2 of 5.** Do not implement features beyond the current phase. Full roadmap lives in README.md.
 
 When Phase 1 is complete, the user will update this file before starting the next phase.
 

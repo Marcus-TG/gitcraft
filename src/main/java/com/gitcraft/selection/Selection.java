@@ -15,6 +15,15 @@ public final class Selection {
     private UUID worldId;
     private BlockVector3 pos1;
     private BlockVector3 pos2;
+    private String name;
+
+    public synchronized void setName(String name) {
+        this.name = name;
+    }
+
+    public synchronized String name() {
+        return name;
+    }
 
     public synchronized void setPos1(World world, BlockVector3 v) {
         if (worldId != null && !worldId.equals(world.getUID())) {

@@ -7,7 +7,11 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.regex.Pattern;
+
 public final class SelectSubcommand implements Subcommand {
+
+    private static final Pattern NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]{1,64}$");
 
     private final GitCraft plugin;
     private final SelectionManager manager;
@@ -19,6 +23,16 @@ public final class SelectSubcommand implements Subcommand {
 
     @Override
     public void execute(Player player, String[] args) {
+        if (args.length >= 1) {
+            String name = args[0];
+            if (!NAME_PATTERN.matcher(name).matches()) {
+                player.sendMessage(Messages.SELECT_INVALID_NAME);
+                return;
+            }
+            manager.getOrCreate(player.getUniqueId()).setName(name);
+            player.sendMessage(String.format(Messages.SELECT_NAMED, name));
+        }
+
         manager.enableSelecting(player.getUniqueId());
 
         Material wand = plugin.gitCraftConfig().wandMaterial();
