@@ -9,14 +9,14 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.regex.Pattern;
 
-public final class SelectSubcommand implements Subcommand {
+public final class InitSubcommand implements Subcommand {
 
     private static final Pattern NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]{1,64}$");
 
     private final GitCraft plugin;
     private final SelectionManager manager;
 
-    public SelectSubcommand(GitCraft plugin, SelectionManager manager) {
+    public InitSubcommand(GitCraft plugin, SelectionManager manager) {
         this.plugin = plugin;
         this.manager = manager;
     }

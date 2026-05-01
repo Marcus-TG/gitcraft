@@ -115,7 +115,8 @@ When Phase 1 is complete, the user will update this file before starting the nex
 ## Commands (eventual target — implement per phase)
 
 ```
-/gitcraft select        ← starts region wand selection
+/gitcraft init <name>   ← starts region wand selection
+/gitcraft open <name>   ← opens an existing region for editing
 /gitcraft commit <msg>  ← exports region + saves commit metadata
 /gitcraft log           ← lists commits for your regions
 /gitcraft restore <id>  ← rolls region back to a prior commit
