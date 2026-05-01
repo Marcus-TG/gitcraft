@@ -1,0 +1,17 @@
+# GitCraft configuration.
+# All runtime paths live here. Do not hardcode paths in source.
+
+storage:
+  # Directory where .schem files are written.
+  # Relative paths resolve against the plugin data folder (plugins/GitCraft/).
+  schematics-path: schematics
+
+database:
+  # SQLite database file. Relative paths resolve against the plugin data folder.
+  file: gitcraft.db
+
+# Reserved for Phase 3+. Ignored in Phase 1.
+backend:
+  enabled: false
+  url: ''
+  api-key: ''

@@ -1,0 +1,12 @@
+name: GitCraft
+version: '${version}'
+main: com.gitcraft.GitCraft
+api-version: '1.21'
+author: marcus
+description: Git-like version control for Minecraft builds.
+depend: [WorldEdit]
+commands:
+  gitcraft:
+    description: GitCraft root command.
+    usage: /gitcraft <subcommand>
+    aliases: [gc]
