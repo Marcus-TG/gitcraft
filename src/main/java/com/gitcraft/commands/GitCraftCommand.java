@@ -5,6 +5,7 @@ import com.gitcraft.commands.sub.ClearSubcommand;
 import com.gitcraft.commands.sub.CommitSubcommand;
 import com.gitcraft.commands.sub.InitSubcommand;
 import com.gitcraft.commands.sub.LogSubcommand;
+import com.gitcraft.commands.sub.OpenSubcommand;
 import com.gitcraft.commands.sub.Pos1Subcommand;
 import com.gitcraft.commands.sub.Pos2Subcommand;
 import com.gitcraft.commands.sub.RestoreSubcommand;
@@ -34,6 +35,7 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
 
     public GitCraftCommand(GitCraft plugin, SelectionManager manager, CommitService commitService, CommitDao commitDao) {
         subs.put("init",    new InitSubcommand(plugin, manager));
+        subs.put("open",    new OpenSubcommand(plugin, manager, commitDao));
         subs.put("pos1",    new Pos1Subcommand(manager));
         subs.put("pos2",    new Pos2Subcommand(manager));
         subs.put("clear",   new ClearSubcommand(manager));

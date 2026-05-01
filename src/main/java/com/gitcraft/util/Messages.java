@@ -22,6 +22,12 @@ public final class Messages {
     public static final String CROSS_WORLD = "Both corners must be in the same world.";
     public static final String WORLD_NOT_LOADED = "The selection's world is not loaded.";
 
+    public static final String OPEN_USAGE = "Usage: /gitcraft open <name>";
+    public static final String OPEN_NOT_FOUND = "No commits found for region '%s'.";
+    public static final String OPEN_DB_FAILED = "Failed to look up region: %s";
+    public static final String OPEN_WORLD_GONE = "World '%s' is no longer loaded.";
+    public static final String OPEN_RESTORED = "Opened region '%s' from commit %d. Pos1 (%d, %d, %d) Pos2 (%d, %d, %d)";
+
     public static final String COMMIT_USAGE = "Usage: /gitcraft commit <msg>";
     public static final String COMMIT_NO_REGION_NAME = "No region name set. Run /gitcraft init <name> first.";
     public static final String COMMIT_EMPTY_MESSAGE = "Commit message cannot be empty.";
