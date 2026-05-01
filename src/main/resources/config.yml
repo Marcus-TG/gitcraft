@@ -1,6 +1,10 @@
 # GitCraft configuration.
 # All runtime paths live here. Do not hardcode paths in source.
 
+selection:
+  # Material used as the selection wand. Must be a valid Bukkit Material name.
+  wand-material: WOODEN_AXE
+
 storage:
   # Directory where .schem files are written.
   # Relative paths resolve against the plugin data folder (plugins/GitCraft/).
@@ -8,6 +12,7 @@ storage:
 
 database:
   # SQLite database file. Relative paths resolve against the plugin data folder.
+  # Reserved for Phase 2+. Unused in Phase 1.
   file: gitcraft.db
 
 # Reserved for Phase 3+. Ignored in Phase 1.

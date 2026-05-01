@@ -8,4 +8,9 @@ depend: [WorldEdit]
 commands:
   gitcraft:
     description: GitCraft root command.
-    usage: /gitcraft <subcommand>
+    usage: /gitcraft <select|pos1|pos2|clear|export>
+    permission: gitcraft.use
+permissions:
+  gitcraft.use:
+    description: Use GitCraft commands.
+    default: true

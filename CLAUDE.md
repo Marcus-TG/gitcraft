@@ -54,6 +54,7 @@ gitcraft/
     ├── java/com/gitcraft/
     │   ├── GitCraft.java          ← Main plugin class (onEnable/onDisable only)
     │   ├── listeners/             ← Event handlers — thin, no logic
+    │   ├── selection/             ← Selection.java, SelectionManager.java
     │   ├── database/              ← SQLite connection, schema, DAOs
     │   ├── commands/              ← /gitcraft subcommands
     │   ├── export/                ← Schematic generation via WorldEdit API
