@@ -9,4 +9,3 @@ commands:
   gitcraft:
     description: GitCraft root command.
     usage: /gitcraft <subcommand>
-    aliases: [gc]

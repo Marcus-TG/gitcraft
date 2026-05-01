@@ -6,9 +6,8 @@ group = 'com.gitcraft'
 version = '0.1.0'
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 repositories {
@@ -25,7 +24,12 @@ repositories {
 
 dependencies {
     compileOnly 'io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT'
-    compileOnly 'com.sk89q.worldedit:worldedit-bukkit:7.3.6'
+    compileOnly('com.sk89q.worldedit:worldedit-bukkit:7.3.6') {
+        transitive = false
+    }
+    compileOnly('com.sk89q.worldedit:worldedit-core:7.3.6') {
+        transitive = false
+    }
 
     implementation 'org.xerial:sqlite-jdbc:3.46.1.0'
 }
