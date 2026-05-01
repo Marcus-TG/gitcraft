@@ -18,7 +18,7 @@ GitCraft is **not** a block-change audit log. It does not track every block plac
 | Schematic format | Sponge Schematic (`.schem`, v2/v3)      |
 | Schematic I/O    | WorldEdit API (library dependency)      |
 | Local storage    | SQLite (embedded)                       |
-| Backend (Phase 3+) | REST API in Docker                    |
+| Backend (Phase 4+) | REST API in Docker                    |
 | Version backbone (Phase 5) | Gitea                         |
 | Deployment       | Docker + Portainer                      |
 
@@ -28,8 +28,8 @@ GitCraft is **not** a block-change audit log. It does not track every block plac
 |-------|----------------|
 | 1 | Region selection + export selected region to `.schem` |
 | 2 | `/gitcraft commit` — attaches player UUID + timestamp, saves schem locally |
-| 3 | REST API backend container — store and retrieve schematics |
-| 4 | `/gitcraft push` / `/gitcraft pull` — in-game commands to talk to the API |
+| 3 | `/gitcraft log` / `/gitcraft restore` — commit history and rollback |
+| 4 | REST API backend container + `/gitcraft push` / `/gitcraft pull` |
 | 5 | Gitea integration + web UI for browsing and forking builds |
 
 Current phase is tracked in `CLAUDE.md`. Do not implement features beyond the current phase without bumping it there first.
@@ -48,7 +48,7 @@ gitcraft/
     │   ├── database/              # SQLite connection, schema, DAOs
     │   ├── commands/              # /gitcraft subcommands
     │   ├── export/                # Schematic generation via WorldEdit
-    │   └── api/                   # REST client (Phase 3+)
+    │   └── api/                   # REST client (Phase 4+)
     └── resources/
         ├── plugin.yml
         └── config.yml

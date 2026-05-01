@@ -6,7 +6,7 @@ public final class Messages {
 
     public static final String PLAYER_ONLY = "This command can only be run by a player.";
     public static final String NO_PERMISSION = "You don't have permission to use GitCraft.";
-    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: select, pos1, pos2, clear, commit.";
+    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: select, pos1, pos2, clear, commit, log, restore.";
 
     public static final String SELECT_ENABLED = "Selection mode enabled. Left-click pos1, right-click pos2.";
     public static final String SELECT_WAND_GIVEN = "A selection wand has been added to your inventory.";
@@ -32,6 +32,26 @@ public final class Messages {
     public static final String COMMIT_DB_FAILED = "Failed to save commit metadata: %s";
     public static final String COMMIT_IO_FAILED = "Failed to write schematic: %s";
     public static final String COMMIT_WE_FAILED = "Schematic build failed: %s";
+
+    public static final String LOG_USAGE = "Usage: /gitcraft log <region> [page]";
+    public static final String LOG_INVALID_PAGE = "Page must be a positive integer.";
+    public static final String LOG_HEADER = "Commits for '%s' — page %d/%d (%d total):";
+    public static final String LOG_FOOTER_NEXT = "More — /gitcraft log %s %d";
+    public static final String LOG_EMPTY = "No commits found for region '%s'.";
+    public static final String LOG_PAGE_OUT_OF_RANGE = "Page %d out of range (max %d).";
+    public static final String LOG_DB_FAILED = "Failed to read commit history: %s";
+
+    public static final String RESTORE_USAGE = "Usage: /gitcraft restore <id>";
+    public static final String RESTORE_INVALID_ID = "Invalid commit id. Must be a positive number.";
+    public static final String RESTORE_STARTED = "Restoring commit...";
+    public static final String RESTORE_NOT_FOUND = "Commit %d not found.";
+    public static final String RESTORE_FILE_MISSING = "Schematic file missing on disk: %s";
+    public static final String RESTORE_BAD_FORMAT = "Schematic file format not recognized.";
+    public static final String RESTORE_WORLD_GONE = "World '%s' is no longer loaded.";
+    public static final String RESTORE_SUCCESS = "Restored commit %d (region=%s, %d blocks).";
+    public static final String RESTORE_DB_FAILED = "Failed to look up commit: %s";
+    public static final String RESTORE_IO_FAILED = "Failed to read schematic: %s";
+    public static final String RESTORE_WE_FAILED = "Restore paste failed: %s";
 
     public static final String WORLDEDIT_MISSING = "WorldEdit plugin not found. GitCraft requires WorldEdit to be installed.";
 }

@@ -46,6 +46,16 @@ public final class CommitService {
         // adapt() must run on the main thread.
         com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(bukkitWorld);
 
+        // Snapshot world identity + bbox here on the main thread before async handoff.
+        UUID worldUuid = bukkitWorld.getUID();
+        String worldName = bukkitWorld.getName();
+        int minX = Math.min(pos1.x(), pos2.x());
+        int minY = Math.min(pos1.y(), pos2.y());
+        int minZ = Math.min(pos1.z(), pos2.z());
+        int maxX = Math.max(pos1.x(), pos2.x());
+        int maxY = Math.max(pos1.y(), pos2.y());
+        int maxZ = Math.max(pos1.z(), pos2.z());
+
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             boolean schemWritten = false;
             try {
@@ -55,7 +65,8 @@ public final class CommitService {
                 long createdAt = System.currentTimeMillis();
                 long id = commitDao.insert(new CommitRecord(
                         null, playerId, playerName, regionName, message,
-                        schemPath.toString(), createdAt));
+                        schemPath.toString(), createdAt,
+                        worldUuid, worldName, minX, minY, minZ, maxX, maxY, maxZ));
 
                 sendOnMain(playerId, String.format(Messages.COMMIT_SUCCESS, id, regionName));
                 plugin.getLogger().info("Commit " + id + " saved (region=" + regionName

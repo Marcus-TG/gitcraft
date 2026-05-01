@@ -61,7 +61,7 @@ public final class GitCraft extends JavaPlugin {
 
         PluginCommand cmd = getCommand("gitcraft");
         if (cmd != null) {
-            GitCraftCommand executor = new GitCraftCommand(this, selectionManager, commitService);
+            GitCraftCommand executor = new GitCraftCommand(this, selectionManager, commitService, commitDao);
             cmd.setExecutor(executor);
             cmd.setTabCompleter(executor);
         } else {

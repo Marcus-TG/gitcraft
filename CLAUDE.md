@@ -64,7 +64,7 @@ gitcraft/
     │   ├── database/              ← SQLite connection, schema, DAOs
     │   ├── commands/              ← /gitcraft subcommands
     │   ├── export/                ← Schematic generation via WorldEdit API
-    │   └── api/                   ← REST client for backend (Phase 3+)
+    │   └── api/                   ← REST client for backend (Phase 4+)
     └── resources/
         ├── plugin.yml
         └── config.yml
@@ -84,7 +84,7 @@ A "commit" in GitCraft is:
 
 - A `.schem` snapshot of a player-selected region
 - Metadata: who committed (player UUID), when (Unix timestamp in milliseconds), commit message
-- Stored and versioned via Gitea on the backend (Phase 4+)
+- Stored and versioned via Gitea on the backend (Phase 5)
 
 ### Core SQLite Schema (Phase 1–2)
 
@@ -106,7 +106,7 @@ This schema is append-only. Do not modify committed rows.
 
 ## Scope
 
-**Current phase: 2 of 5.** Do not implement features beyond the current phase. Full roadmap lives in README.md.
+**Current phase: 3 of 5.** Do not implement features beyond the current phase. Full roadmap lives in README.md.
 
 When Phase 1 is complete, the user will update this file before starting the next phase.
 
@@ -117,9 +117,10 @@ When Phase 1 is complete, the user will update this file before starting the nex
 ```
 /gitcraft select        ← starts region wand selection
 /gitcraft commit <msg>  ← exports region + saves commit metadata
+/gitcraft log           ← lists commits for your regions
+/gitcraft restore <id>  ← rolls region back to a prior commit
 /gitcraft push          ← uploads schem to backend
 /gitcraft pull <id>     ← downloads schem from backend and pastes it
-/gitcraft log           ← lists commits for your regions
 ```
 
 ---
@@ -128,7 +129,7 @@ When Phase 1 is complete, the user will update this file before starting the nex
 
 - Plugin runs in a **Docker container** (Paper server), managed via **Portainer**
 - Schematics are stored on **TrueNAS** — mount path will be provided when relevant
-- Backend API will be a separate Docker container (Phase 3)
+- Backend API will be a separate Docker container (Phase 4)
 - Gitea is the eventual version control backbone (Phase 5)
 - Do not hardcode paths — all paths go in `config.yml`
 

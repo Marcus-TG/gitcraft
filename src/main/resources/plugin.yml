@@ -8,9 +8,15 @@ depend: [WorldEdit]
 commands:
   gitcraft:
     description: GitCraft root command.
-    usage: /gitcraft <select [name]|pos1|pos2|clear|commit <msg>>
+    usage: /gitcraft <select [name]|pos1|pos2|clear|commit <msg>|log <region> [page]|restore <id>>
     permission: gitcraft.use
 permissions:
   gitcraft.use:
     description: Use GitCraft commands.
     default: true
+  gitcraft.log:
+    description: View commit history for a region.
+    default: true
+  gitcraft.restore:
+    description: Restore a region to a prior commit (overwrites blocks).
+    default: op

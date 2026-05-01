@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.stream.Collectors;
@@ -15,11 +16,14 @@ import java.util.stream.Stream;
 /**
  * Runs database migrations once on plugin enable. Idempotent — safe to invoke
  * on every startup. Schema lives in the classpath resource {@code database/schema.sql}.
+ *
+ * v1 → v2: drops {@code commits} (Phase 2 dev rows are disposable) so it can be
+ * recreated with the world + bounding-box columns required by Phase 3 restore.
  */
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 1;
+    private static final int CURRENT_VERSION = 2;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held
@@ -29,6 +33,15 @@ public final class SchemaMigrator {
         Connection conn = database.connection();
         if (conn == null || conn.isClosed()) {
             throw new SQLException("Database connection is not open. Call Database.open() first.");
+        }
+
+        ensureSchemaVersionTable(conn);
+        int existing = readMaxVersion(conn);
+
+        if (existing < 2) {
+            try (Statement st = conn.createStatement()) {
+                st.execute("DROP TABLE IF EXISTS commits");
+            }
         }
 
         String sql = stripLineComments(readResource(SCHEMA_RESOURCE));
@@ -46,6 +59,20 @@ public final class SchemaMigrator {
             ps.setInt(1, CURRENT_VERSION);
             ps.setLong(2, System.currentTimeMillis());
             ps.executeUpdate();
+        }
+    }
+
+    private void ensureSchemaVersionTable(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE IF NOT EXISTS schema_version (" +
+                    "version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)");
+        }
+    }
+
+    private int readMaxVersion(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COALESCE(MAX(version), 0) FROM schema_version")) {
+            return rs.next() ? rs.getInt(1) : 0;
         }
     }
 
