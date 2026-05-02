@@ -17,11 +17,11 @@ public final class CommitDao {
     private static final String INSERT_SQL =
             "INSERT INTO commits(" +
                     "player_uuid, player_name, region_name, message, schem_path, created_at, " +
-                    "world_uuid, world_name, min_x, min_y, min_z, max_x, max_y, max_z" +
-                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    "world_uuid, world_name, min_x, min_y, min_z, max_x, max_y, max_z, parent_commit_id" +
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private static final String SELECT_COLUMNS =
-            "id, player_uuid, player_name, region_name, message, schem_path, created_at, " +
+            "id, parent_commit_id, player_uuid, player_name, region_name, message, schem_path, created_at, " +
                     "world_uuid, world_name, min_x, min_y, min_z, max_x, max_y, max_z";
 
     private static final String FIND_BY_ID_SQL =
@@ -33,6 +33,9 @@ public final class CommitDao {
 
     private static final String COUNT_BY_REGION_SQL =
             "SELECT COUNT(*) FROM commits WHERE region_name = ?";
+
+    private static final String FIND_LATEST_ID_BY_REGION_SQL =
+            "SELECT MAX(id) FROM commits WHERE region_name = ?";
 
     private static final String FIND_NEWER_THAN_SQL =
             "SELECT " + SELECT_COLUMNS + " FROM commits WHERE id > ? AND region_name = ? ORDER BY id ASC";
@@ -63,6 +66,7 @@ public final class CommitDao {
             ps.setInt(12, r.maxX());
             ps.setInt(13, r.maxY());
             ps.setInt(14, r.maxZ());
+            ps.setObject(15, r.parentCommitId());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -106,6 +110,19 @@ public final class CommitDao {
         }
     }
 
+    public Optional<Long> findLatestIdByRegion(String regionName) throws SQLException {
+        try (PreparedStatement ps = database.connection().prepareStatement(FIND_LATEST_ID_BY_REGION_SQL)) {
+            ps.setString(1, regionName);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    long val = rs.getLong(1);
+                    return rs.wasNull() ? Optional.empty() : Optional.of(val);
+                }
+                return Optional.empty();
+            }
+        }
+    }
+
     public List<CommitRecord> findNewerThan(long targetId, String regionName) throws SQLException {
         List<CommitRecord> out = new ArrayList<>();
         try (PreparedStatement ps = database.connection().prepareStatement(FIND_NEWER_THAN_SQL)) {
@@ -129,8 +146,11 @@ public final class CommitDao {
     }
 
     private CommitRecord map(ResultSet rs) throws SQLException {
+        long rawParent = rs.getLong("parent_commit_id");
+        Long parentCommitId = rs.wasNull() ? null : rawParent;
         return new CommitRecord(
                 rs.getLong("id"),
+                parentCommitId,
                 UUID.fromString(rs.getString("player_uuid")),
                 rs.getString("player_name"),
                 rs.getString("region_name"),

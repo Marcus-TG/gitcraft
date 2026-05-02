@@ -19,11 +19,12 @@ import java.util.stream.Stream;
  *
  * v1 → v2: drops {@code commits} (Phase 2 dev rows are disposable) so it can be
  * recreated with the world + bounding-box columns required by Phase 3 restore.
+ * v2 → v3: adds {@code parent_commit_id} via ALTER TABLE (non-destructive; existing rows get NULL).
  */
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 2;
+    private static final int CURRENT_VERSION = 3;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held
@@ -41,6 +42,12 @@ public final class SchemaMigrator {
         if (existing < 2) {
             try (Statement st = conn.createStatement()) {
                 st.execute("DROP TABLE IF EXISTS commits");
+            }
+        }
+
+        if (existing == 2) {
+            try (Statement st = conn.createStatement()) {
+                st.execute("ALTER TABLE commits ADD COLUMN parent_commit_id INTEGER");
             }
         }
 

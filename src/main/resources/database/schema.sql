@@ -1,7 +1,7 @@
 -- GitCraft schema. Idempotent. Run on every plugin enable via SchemaMigrator.
 -- All schema changes happen here; do not CREATE TABLE elsewhere.
--- Migration to v2 is handled by SchemaMigrator: it drops the v1 commits table
--- before this script runs so the new column set is created cleanly.
+-- v2: world + bounding-box columns added (SchemaMigrator drops v1 table, recreates).
+-- v3: parent_commit_id added (SchemaMigrator ALTER TABLE on existing v2 installs).
 
 CREATE TABLE IF NOT EXISTS commits (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,9 +16,10 @@ CREATE TABLE IF NOT EXISTS commits (
     min_x       INTEGER NOT NULL,
     min_y       INTEGER NOT NULL,
     min_z       INTEGER NOT NULL,
-    max_x       INTEGER NOT NULL,
-    max_y       INTEGER NOT NULL,
-    max_z       INTEGER NOT NULL
+    max_x            INTEGER NOT NULL,
+    max_y            INTEGER NOT NULL,
+    max_z            INTEGER NOT NULL,
+    parent_commit_id INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_commits_player ON commits(player_uuid);

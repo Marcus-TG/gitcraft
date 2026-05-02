@@ -62,9 +62,10 @@ public final class CommitService {
                 exporter.writeSchematic(weWorld, pos1, pos2, schemPath);
                 schemWritten = true;
 
+                Long parentCommitId = commitDao.findLatestIdByRegion(regionName).orElse(null);
                 long createdAt = System.currentTimeMillis();
                 long id = commitDao.insert(new CommitRecord(
-                        null, playerId, playerName, regionName, message,
+                        null, parentCommitId, playerId, playerName, regionName, message,
                         schemPath.toString(), createdAt,
                         worldUuid, worldName, minX, minY, minZ, maxX, maxY, maxZ));
 
