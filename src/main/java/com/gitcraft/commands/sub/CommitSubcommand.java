@@ -57,6 +57,11 @@ public final class CommitSubcommand implements Subcommand {
             player.sendMessage(Messages.COMMIT_NO_BRANCH);
             return;
         }
+        Long repoId = sel.repoId();
+        if (repoId == null) {
+            player.sendMessage(Messages.COMMIT_NO_BRANCH);
+            return;
+        }
         if (!sel.isComplete()) {
             player.sendMessage(Messages.INCOMPLETE_SELECTION);
             return;
@@ -81,6 +86,7 @@ public final class CommitSubcommand implements Subcommand {
                 player.getUniqueId(),
                 player.getName(),
                 branchId,
+                repoId,
                 message,
                 world,
                 pos1,

@@ -52,7 +52,7 @@ public final class GitCraft extends JavaPlugin {
         try {
             database.open();
             new SchemaMigrator().migrate(database);
-            getLogger().info("Schema migrated to v5.");
+            getLogger().info("Schema migrated to v6.");
         } catch (SQLException | IOException e) {
             getLogger().log(Level.SEVERE, "Failed to initialize SQLite database; disabling plugin.", e);
             Bukkit.getPluginManager().disablePlugin(this);
@@ -64,10 +64,10 @@ public final class GitCraft extends JavaPlugin {
         RepoDao repoDao = new RepoDao(database);
         BranchDao branchDao = new BranchDao(database);
         HeadDao headDao = new HeadDao(database);
-        CommitService commitService = new CommitService(this, exporter, commitDao, branchDao);
-
         DiffService diffService = new DiffService(getLogger());
         this.ghostBlockManager = new GhostBlockManager(this);
+        CommitService commitService = new CommitService(this, exporter, commitDao, branchDao, headDao,
+                ghostBlockManager);
 
         getServer().getPluginManager().registerEvents(
                 new WandListener(this, selectionManager), this);

@@ -5,6 +5,9 @@ import com.gitcraft.database.BranchDao;
 import com.gitcraft.database.BranchRecord;
 import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
+import com.gitcraft.database.HeadDao;
+import com.gitcraft.database.HeadRecord;
+import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.export.SchematicExporter;
 import com.gitcraft.util.Messages;
 import com.sk89q.worldedit.WorldEditException;
@@ -31,18 +34,24 @@ public final class CommitService {
     private final SchematicExporter exporter;
     private final CommitDao commitDao;
     private final BranchDao branchDao;
+    private final HeadDao headDao;
+    private final GhostBlockManager ghostBlockManager;
 
     public CommitService(GitCraft plugin, SchematicExporter exporter,
-                         CommitDao commitDao, BranchDao branchDao) {
+                         CommitDao commitDao, BranchDao branchDao, HeadDao headDao,
+                         GhostBlockManager ghostBlockManager) {
         this.plugin = plugin;
         this.exporter = exporter;
         this.commitDao = commitDao;
         this.branchDao = branchDao;
+        this.headDao = headDao;
+        this.ghostBlockManager = ghostBlockManager;
     }
 
     public void commitAsync(UUID playerId,
                             String playerName,
                             long branchId,
+                            long repoId,
                             String message,
                             World bukkitWorld,
                             BlockVector3 pos1,
@@ -80,7 +89,20 @@ public final class CommitService {
                         schemPath.toString(), createdAt,
                         worldUuid, worldName, minX, minY, minZ, maxX, maxY, maxZ));
 
-                sendOnMain(playerId, String.format(Messages.COMMIT_SUCCESS, id));
+                try {
+                    headDao.upsert(new HeadRecord(playerId, repoId, branchId, id));
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.WARNING, "Commit " + id + " saved but HEAD update failed", e);
+                }
+
+                final long commitId = id;
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    Player p = Bukkit.getPlayer(playerId);
+                    if (p != null && p.isOnline()) {
+                        ghostBlockManager.clear(p);
+                        p.sendMessage(String.format(Messages.COMMIT_SUCCESS, commitId));
+                    }
+                });
                 plugin.getLogger().info("Commit " + id + " saved (branch=" + branchId
                         + ", player=" + playerName + ")");
 

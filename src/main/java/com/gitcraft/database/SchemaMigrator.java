@@ -21,11 +21,13 @@ import java.util.stream.Stream;
  *             and lets schema.sql recreate repos, branches, heads, and commits.
  * v4    → v5: adds {@code branches.fork_commit_id} to preserve commit graph lineage
  *             across branch boundaries.
+ * v5    → v6: adds {@code heads.commit_id} to track which specific commit HEAD points at
+ *             within a branch, rather than always resolving to MAX(id).
  */
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 5;
+    private static final int CURRENT_VERSION = 6;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held
@@ -67,6 +69,16 @@ public final class SchemaMigrator {
             // includes the column, so suppress the "duplicate column name" error.
             try (Statement st = conn.createStatement()) {
                 st.execute("ALTER TABLE branches ADD COLUMN fork_commit_id INTEGER REFERENCES commits(id)");
+            } catch (SQLException e) {
+                if (!e.getMessage().toLowerCase().contains("duplicate column name")) throw e;
+            }
+        }
+
+        if (existing < 6) {
+            // v5 → v6: add commit_id to heads. On fresh installs schema.sql already includes
+            // the column, so suppress the "duplicate column name" error.
+            try (Statement st = conn.createStatement()) {
+                st.execute("ALTER TABLE heads ADD COLUMN commit_id INTEGER REFERENCES commits(id)");
             } catch (SQLException e) {
                 if (!e.getMessage().toLowerCase().contains("duplicate column name")) throw e;
             }

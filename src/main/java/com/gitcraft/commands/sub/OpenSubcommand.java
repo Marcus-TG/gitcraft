@@ -8,6 +8,7 @@ import com.gitcraft.database.CommitRecord;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.HeadRecord;
 import com.gitcraft.database.RepoDao;
+import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.database.RepoRecord;
 import com.gitcraft.selection.Selection;
 import com.gitcraft.selection.SelectionManager;
@@ -37,15 +38,18 @@ public final class OpenSubcommand implements Subcommand {
     private final RepoDao repoDao;
     private final BranchDao branchDao;
     private final HeadDao headDao;
+    private final GhostBlockManager ghostBlockManager;
 
     public OpenSubcommand(GitCraft plugin, SelectionManager manager, CommitDao commitDao,
-                          RepoDao repoDao, BranchDao branchDao, HeadDao headDao) {
+                          RepoDao repoDao, BranchDao branchDao, HeadDao headDao,
+                          GhostBlockManager ghostBlockManager) {
         this.plugin = plugin;
         this.manager = manager;
         this.commitDao = commitDao;
         this.repoDao = repoDao;
         this.branchDao = branchDao;
         this.headDao = headDao;
+        this.ghostBlockManager = ghostBlockManager;
     }
 
     @Override
@@ -88,9 +92,8 @@ public final class OpenSubcommand implements Subcommand {
                 return;
             }
 
-            headDao.upsert(new HeadRecord(playerId, repoId, branchId));
-
             CommitRecord record = rows.get(0);
+            headDao.upsert(new HeadRecord(playerId, repoId, branchId, record.id()));
             Bukkit.getScheduler().runTask(plugin, () -> applyOnMain(playerId, repoName, repoId, branchId, record));
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Open lookup failed", e);
@@ -117,6 +120,7 @@ public final class OpenSubcommand implements Subcommand {
         selection.setPos2(world, BlockVector3.at(record.maxX(), record.maxY(), record.maxZ()));
 
         manager.enableSelecting(playerId);
+        ghostBlockManager.clear(player);
 
         Material wand = plugin.gitCraftConfig().wandMaterial();
         if (!player.getInventory().contains(wand)) {

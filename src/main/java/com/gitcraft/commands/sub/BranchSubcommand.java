@@ -97,7 +97,7 @@ public final class BranchSubcommand implements Subcommand {
 
             long newBranchId = branchDao.insert(
                     new BranchRecord(null, repoId, branchName, System.currentTimeMillis(), forkCommitId));
-            headDao.upsert(new HeadRecord(playerId, repoId, newBranchId));
+            headDao.upsert(new HeadRecord(playerId, repoId, newBranchId, null));
 
             final long branchIdSnap = newBranchId;
             Bukkit.getScheduler().runTask(plugin,

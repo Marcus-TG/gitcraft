@@ -45,16 +45,18 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
                            CommitDao commitDao, RepoDao repoDao, BranchDao branchDao, HeadDao headDao,
                            DiffService diffService, GhostBlockManager ghostBlockManager) {
         subs.put("init",     new InitSubcommand(plugin, manager, repoDao, branchDao, headDao));
-        subs.put("open",     new OpenSubcommand(plugin, manager, commitDao, repoDao, branchDao, headDao));
+        subs.put("open",     new OpenSubcommand(plugin, manager, commitDao, repoDao, branchDao, headDao,
+                ghostBlockManager));
         subs.put("pos1",     new Pos1Subcommand(manager));
         subs.put("pos2",     new Pos2Subcommand(manager));
         subs.put("clear",    new ClearSubcommand(manager));
         subs.put("commit",   new CommitSubcommand(plugin, manager, commitService));
         subs.put("log",      new LogSubcommand(plugin, commitDao, repoDao, branchDao));
-        subs.put("reset",    new ResetSubcommand(plugin, manager, commitDao));
+        subs.put("reset",    new ResetSubcommand(plugin, manager, commitDao, headDao, ghostBlockManager));
         subs.put("branch",   new BranchSubcommand(plugin, manager, commitDao, branchDao, headDao));
-        subs.put("checkout", new CheckoutSubcommand(plugin, manager, commitDao, branchDao, headDao));
-        subs.put("diff",     new DiffSubcommand(plugin, manager, commitDao, branchDao, repoDao,
+        subs.put("checkout", new CheckoutSubcommand(plugin, manager, commitDao, branchDao, headDao,
+                ghostBlockManager));
+        subs.put("diff",     new DiffSubcommand(plugin, manager, commitDao, branchDao, repoDao, headDao,
                 diffService, ghostBlockManager));
     }
 

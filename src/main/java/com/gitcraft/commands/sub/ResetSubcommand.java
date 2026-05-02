@@ -3,6 +3,9 @@ package com.gitcraft.commands.sub;
 import com.gitcraft.GitCraft;
 import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
+import com.gitcraft.database.HeadDao;
+import com.gitcraft.database.HeadRecord;
+import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.selection.Selection;
 import com.gitcraft.selection.SelectionManager;
 import com.gitcraft.util.Messages;
@@ -43,6 +46,8 @@ public final class ResetSubcommand implements Subcommand {
     private final GitCraft plugin;
     private final SelectionManager manager;
     private final CommitDao commitDao;
+    private final HeadDao headDao;
+    private final GhostBlockManager ghostBlockManager;
 
     // TODO: Entries are not evicted on disconnect. 30s TTL is sufficient for now.
     //       Add a PlayerQuitEvent listener calling pending.remove(uuid) if explicit cleanup is needed.
@@ -52,10 +57,13 @@ public final class ResetSubcommand implements Subcommand {
         boolean isExpired() { return System.currentTimeMillis() > expiresAt; }
     }
 
-    public ResetSubcommand(GitCraft plugin, SelectionManager manager, CommitDao commitDao) {
+    public ResetSubcommand(GitCraft plugin, SelectionManager manager, CommitDao commitDao,
+                           HeadDao headDao, GhostBlockManager ghostBlockManager) {
         this.plugin = plugin;
         this.manager = manager;
         this.commitDao = commitDao;
+        this.headDao = headDao;
+        this.ghostBlockManager = ghostBlockManager;
     }
 
     @Override
@@ -87,13 +95,19 @@ public final class ResetSubcommand implements Subcommand {
             return;
         }
         long activeBranchId = sel.branchId();
+        Long repoIdBoxed = sel.repoId();
+        if (repoIdBoxed == null) {
+            player.sendMessage(Messages.RESET_NO_REPO);
+            return;
+        }
+        long activeRepoId = repoIdBoxed;
 
         boolean hard = args.length >= 2 && "--hard".equals(args[1]);
 
         if (!hard) {
             player.sendMessage(Messages.RESET_STARTED);
             Bukkit.getScheduler().runTaskAsynchronously(plugin,
-                    () -> loadAndDispatch(player.getUniqueId(), id, activeBranchId));
+                    () -> loadAndDispatch(player.getUniqueId(), id, activeBranchId, activeRepoId));
             return;
         }
 
@@ -108,14 +122,14 @@ public final class ResetSubcommand implements Subcommand {
             pending.remove(playerId);
             player.sendMessage(Messages.RESET_HARD_STARTED);
             Bukkit.getScheduler().runTaskAsynchronously(plugin,
-                    () -> loadAndDispatchHard(playerId, id, activeBranchId));
+                    () -> loadAndDispatchHard(playerId, id, activeBranchId, activeRepoId));
         } else {
             pending.put(playerId, new PendingHardReset(id, System.currentTimeMillis() + CONFIRM_TTL_MS));
             player.sendMessage(String.format(Messages.RESET_HARD_WARN, id));
         }
     }
 
-    private void loadAndDispatch(UUID playerId, long id, long activeBranchId) {
+    private void loadAndDispatch(UUID playerId, long id, long activeBranchId, long activeRepoId) {
         CommitRecord record;
         try {
             Optional<CommitRecord> opt = commitDao.findById(id);
@@ -143,10 +157,10 @@ public final class ResetSubcommand implements Subcommand {
         Clipboard clipboard = loadClipboard(playerId, record);
         if (clipboard == null) return;
 
-        Bukkit.getScheduler().runTask(plugin, () -> paste(playerId, record, clipboard, -1));
+        Bukkit.getScheduler().runTask(plugin, () -> paste(playerId, record, clipboard, -1, activeRepoId));
     }
 
-    private void loadAndDispatchHard(UUID playerId, long id, long activeBranchId) {
+    private void loadAndDispatchHard(UUID playerId, long id, long activeBranchId, long activeRepoId) {
         CommitRecord record;
         List<CommitRecord> toDelete;
         int deletedCount;
@@ -178,6 +192,16 @@ public final class ResetSubcommand implements Subcommand {
         Clipboard clipboard = loadClipboard(playerId, record);
         if (clipboard == null) return;
 
+        // Move HEAD to the target commit before deleting newer commits. This avoids a FK
+        // constraint violation if heads.commit_id points to a commit that is about to be deleted.
+        try {
+            headDao.upsert(new HeadRecord(playerId, activeRepoId, record.branchId(), record.id()));
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Hard reset HEAD update failed", e);
+            sendOnMain(playerId, String.format(Messages.RESET_DB_FAILED, safe(e.getMessage())));
+            return;
+        }
+
         // TODO: If the server crashes after this DB delete but before the main-thread paste,
         //       the DB loses these commits while the world still shows the newer state.
         //       Acceptable for a side project; the window is sub-millisecond.
@@ -199,7 +223,7 @@ public final class ResetSubcommand implements Subcommand {
 
         final CommitRecord rec = record;
         final int deleted = deletedCount;
-        Bukkit.getScheduler().runTask(plugin, () -> paste(playerId, rec, clipboard, deleted));
+        Bukkit.getScheduler().runTask(plugin, () -> paste(playerId, rec, clipboard, deleted, activeRepoId));
     }
 
     private Clipboard loadClipboard(UUID playerId, CommitRecord record) {
@@ -226,7 +250,7 @@ public final class ResetSubcommand implements Subcommand {
         }
     }
 
-    private void paste(UUID playerId, CommitRecord record, Clipboard clipboard, int deletedAfter) {
+    private void paste(UUID playerId, CommitRecord record, Clipboard clipboard, int deletedAfter, long repoId) {
         World world = Bukkit.getWorld(record.worldUuid());
         if (world == null) {
             sendNow(playerId, String.format(Messages.RESET_WORLD_GONE, record.worldName()));
@@ -247,7 +271,19 @@ public final class ResetSubcommand implements Subcommand {
                             .build());
 
             int changed = edit.getBlockChangeCount();
+            Player player = Bukkit.getPlayer(playerId);
+            if (player != null) ghostBlockManager.clear(player);
             if (deletedAfter < 0) {
+                // Soft reset: move HEAD to the target commit now that paste succeeded.
+                final long targetCommitId = record.id();
+                final long branchIdSnap = record.branchId();
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                    try {
+                        headDao.upsert(new HeadRecord(playerId, repoId, branchIdSnap, targetCommitId));
+                    } catch (SQLException e) {
+                        plugin.getLogger().log(Level.WARNING, "Failed to update HEAD after soft reset", e);
+                    }
+                });
                 sendNow(playerId, String.format(Messages.RESET_SUCCESS, record.id(), changed));
                 plugin.getLogger().info("Reset #" + record.id()
                         + " branch=" + record.branchId() + " blocks=" + changed);

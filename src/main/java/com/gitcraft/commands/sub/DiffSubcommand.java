@@ -5,6 +5,8 @@ import com.gitcraft.database.BranchDao;
 import com.gitcraft.database.BranchRecord;
 import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
+import com.gitcraft.database.HeadDao;
+import com.gitcraft.database.HeadRecord;
 import com.gitcraft.database.RepoDao;
 import com.gitcraft.database.RepoRecord;
 import com.gitcraft.diff.DiffResult;
@@ -36,6 +38,7 @@ public final class DiffSubcommand implements Subcommand {
     private final CommitDao commitDao;
     private final BranchDao branchDao;
     private final RepoDao repoDao;
+    private final HeadDao headDao;
     private final DiffService diffService;
     private final GhostBlockManager ghostBlockManager;
 
@@ -47,13 +50,14 @@ public final class DiffSubcommand implements Subcommand {
     }
 
     public DiffSubcommand(GitCraft plugin, SelectionManager manager,
-                          CommitDao commitDao, BranchDao branchDao, RepoDao repoDao,
+                          CommitDao commitDao, BranchDao branchDao, RepoDao repoDao, HeadDao headDao,
                           DiffService diffService, GhostBlockManager ghostBlockManager) {
         this.plugin            = plugin;
         this.manager           = manager;
         this.commitDao         = commitDao;
         this.branchDao         = branchDao;
         this.repoDao           = repoDao;
+        this.headDao           = headDao;
         this.diffService       = diffService;
         this.ghostBlockManager = ghostBlockManager;
     }
@@ -132,38 +136,45 @@ public final class DiffSubcommand implements Subcommand {
 
         // /gitcraft diff (no args)
         Bukkit.getScheduler().runTaskAsynchronously(plugin,
-                () -> runLastTwoDiff(playerId, branchId));
+                () -> runLastTwoDiff(playerId, branchId, repoId));
     }
 
     // --- Async resolution ---
 
-    private void runLastTwoDiff(UUID playerId, long branchId) {
-        List<CommitRecord> commits;
+    private void runLastTwoDiff(UUID playerId, long branchId, long repoId) {
         try {
-            commits = commitDao.findByBranch(branchId, 2, 0);
+            Long headCommitId = resolveHeadCommitId(playerId, repoId, branchId);
+            if (headCommitId == null) {
+                sendOnMain(playerId, Messages.DIFF_NEED_TWO_COMMITS);
+                return;
+            }
+            CommitRecord head = commitDao.findById(headCommitId).orElse(null);
+            if (head == null || head.parentCommitId() == null) {
+                sendOnMain(playerId, Messages.DIFF_NEED_TWO_COMMITS);
+                return;
+            }
+            CommitRecord parent = commitDao.findById(head.parentCommitId()).orElse(null);
+            if (parent == null) {
+                sendOnMain(playerId, Messages.DIFF_NEED_TWO_COMMITS);
+                return;
+            }
+            dispatchDiff(playerId, parent, head);
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Diff DB lookup failed", e);
             sendOnMain(playerId, String.format(Messages.DIFF_DB_FAILED, safe(e.getMessage())));
-            return;
         }
-        if (commits.size() < 2) {
-            sendOnMain(playerId, Messages.DIFF_NEED_TWO_COMMITS);
-            return;
-        }
-        // findByBranch returns DESC order: index 0 is newer (after), index 1 is older (before)
-        dispatchDiff(playerId, commits.get(1), commits.get(0));
     }
 
     private void runHeadVsIdDiff(UUID playerId, long branchId, long activeRepoId, long targetId) {
         CommitRecord head;
         CommitRecord target;
         try {
-            Optional<Long> headIdOpt = commitDao.findLatestIdByBranch(branchId);
-            if (headIdOpt.isEmpty()) {
+            Long headCommitId = resolveHeadCommitId(playerId, activeRepoId, branchId);
+            if (headCommitId == null) {
                 sendOnMain(playerId, Messages.DIFF_NO_HEAD);
                 return;
             }
-            Optional<CommitRecord> headOpt = commitDao.findById(headIdOpt.get());
+            Optional<CommitRecord> headOpt = commitDao.findById(headCommitId);
             if (headOpt.isEmpty()) {
                 sendOnMain(playerId, Messages.DIFF_NO_HEAD);
                 return;
@@ -194,6 +205,17 @@ public final class DiffSubcommand implements Subcommand {
 
         // target = before, head = after (HEAD is the current/newer state)
         dispatchDiff(playerId, target, head);
+    }
+
+    // Returns null if no HEAD commit can be resolved (empty branch or no tracked HEAD).
+    // Falls back to MAX(id) for rows migrated from schema v5 where commit_id is NULL.
+    private Long resolveHeadCommitId(UUID playerId, long repoId, long branchId) throws SQLException {
+        Optional<HeadRecord> headRecOpt = headDao.findByPlayerAndRepo(playerId, repoId);
+        Long commitId = headRecOpt.map(HeadRecord::commitId).orElse(null);
+        if (commitId == null) {
+            commitId = commitDao.findLatestIdByBranch(branchId).orElse(null);
+        }
+        return commitId;
     }
 
     private void runExplicitDiff(UUID playerId, long id1, long id2) {

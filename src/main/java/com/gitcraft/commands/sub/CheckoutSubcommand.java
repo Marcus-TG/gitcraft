@@ -7,6 +7,7 @@ import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.HeadRecord;
+import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.selection.Selection;
 import com.gitcraft.selection.SelectionManager;
 import com.gitcraft.util.Messages;
@@ -45,14 +46,17 @@ public final class CheckoutSubcommand implements Subcommand {
     private final CommitDao commitDao;
     private final BranchDao branchDao;
     private final HeadDao headDao;
+    private final GhostBlockManager ghostBlockManager;
 
     public CheckoutSubcommand(GitCraft plugin, SelectionManager manager,
-                               CommitDao commitDao, BranchDao branchDao, HeadDao headDao) {
+                               CommitDao commitDao, BranchDao branchDao, HeadDao headDao,
+                               GhostBlockManager ghostBlockManager) {
         this.plugin = plugin;
         this.manager = manager;
         this.commitDao = commitDao;
         this.branchDao = branchDao;
         this.headDao = headDao;
+        this.ghostBlockManager = ghostBlockManager;
     }
 
     @Override
@@ -101,7 +105,7 @@ public final class CheckoutSubcommand implements Subcommand {
 
             Optional<Long> latestIdOpt = commitDao.findLatestIdByBranch(targetBranchId);
             if (latestIdOpt.isEmpty()) {
-                headDao.upsert(new HeadRecord(playerId, repoId, targetBranchId));
+                headDao.upsert(new HeadRecord(playerId, repoId, targetBranchId, null));
                 final long branchIdSnap = targetBranchId;
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     Player p = Bukkit.getPlayer(playerId);
@@ -125,7 +129,7 @@ public final class CheckoutSubcommand implements Subcommand {
 
             // TODO: No ownership check — checkout is read-only and future collaboration
             //       should allow any branch participant to checkout freely.
-            headDao.upsert(new HeadRecord(playerId, repoId, targetBranchId));
+            headDao.upsert(new HeadRecord(playerId, repoId, targetBranchId, latestIdOpt.get()));
 
             final long branchIdSnap = targetBranchId;
             final CommitRecord rec = record;
@@ -172,6 +176,7 @@ public final class CheckoutSubcommand implements Subcommand {
                             .build());
 
             int changed = edit.getBlockChangeCount();
+            ghostBlockManager.clear(p);
             p.sendMessage(String.format(Messages.CHECKOUT_SUCCESS, targetBranchName, changed));
             plugin.getLogger().info("Checkout to '" + targetBranchName + "' by " + playerId
                     + " — " + changed + " blocks");
