@@ -29,3 +29,6 @@ permissions:
   gitcraft.checkout:
     description: Switch to an existing branch and restore its latest commit.
     default: op
+  gitcraft.diff:
+    description: Visualize block differences between two commits as ghost blocks.
+    default: op

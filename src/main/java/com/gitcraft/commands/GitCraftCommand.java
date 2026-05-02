@@ -5,6 +5,7 @@ import com.gitcraft.commands.sub.BranchSubcommand;
 import com.gitcraft.commands.sub.CheckoutSubcommand;
 import com.gitcraft.commands.sub.ClearSubcommand;
 import com.gitcraft.commands.sub.CommitSubcommand;
+import com.gitcraft.commands.sub.DiffSubcommand;
 import com.gitcraft.commands.sub.InitSubcommand;
 import com.gitcraft.commands.sub.LogSubcommand;
 import com.gitcraft.commands.sub.OpenSubcommand;
@@ -17,6 +18,8 @@ import com.gitcraft.database.BranchDao;
 import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.RepoDao;
+import com.gitcraft.diff.DiffService;
+import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.selection.SelectionManager;
 import com.gitcraft.util.Messages;
 import org.bukkit.command.Command;
@@ -39,17 +42,20 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
     private final Map<String, Subcommand> subs = new LinkedHashMap<>();
 
     public GitCraftCommand(GitCraft plugin, SelectionManager manager, CommitService commitService,
-                           CommitDao commitDao, RepoDao repoDao, BranchDao branchDao, HeadDao headDao) {
-        subs.put("init",    new InitSubcommand(plugin, manager, repoDao, branchDao, headDao));
-        subs.put("open",    new OpenSubcommand(plugin, manager, commitDao, repoDao, branchDao, headDao));
-        subs.put("pos1",    new Pos1Subcommand(manager));
-        subs.put("pos2",    new Pos2Subcommand(manager));
-        subs.put("clear",   new ClearSubcommand(manager));
+                           CommitDao commitDao, RepoDao repoDao, BranchDao branchDao, HeadDao headDao,
+                           DiffService diffService, GhostBlockManager ghostBlockManager) {
+        subs.put("init",     new InitSubcommand(plugin, manager, repoDao, branchDao, headDao));
+        subs.put("open",     new OpenSubcommand(plugin, manager, commitDao, repoDao, branchDao, headDao));
+        subs.put("pos1",     new Pos1Subcommand(manager));
+        subs.put("pos2",     new Pos2Subcommand(manager));
+        subs.put("clear",    new ClearSubcommand(manager));
         subs.put("commit",   new CommitSubcommand(plugin, manager, commitService));
         subs.put("log",      new LogSubcommand(plugin, commitDao, repoDao, branchDao));
         subs.put("reset",    new ResetSubcommand(plugin, manager, commitDao));
         subs.put("branch",   new BranchSubcommand(plugin, manager, commitDao, branchDao, headDao));
         subs.put("checkout", new CheckoutSubcommand(plugin, manager, commitDao, branchDao, headDao));
+        subs.put("diff",     new DiffSubcommand(plugin, manager, commitDao, branchDao, repoDao,
+                diffService, ghostBlockManager));
     }
 
     @Override

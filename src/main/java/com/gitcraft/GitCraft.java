@@ -9,6 +9,8 @@ import com.gitcraft.database.Database;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.RepoDao;
 import com.gitcraft.database.SchemaMigrator;
+import com.gitcraft.diff.DiffService;
+import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.export.SchematicExporter;
 import com.gitcraft.listeners.WandListener;
 import com.gitcraft.selection.SelectionManager;
@@ -27,6 +29,7 @@ public final class GitCraft extends JavaPlugin {
     private GitCraftConfig config;
     private SelectionManager selectionManager;
     private Database database;
+    private GhostBlockManager ghostBlockManager;
 
     @Override
     public void onEnable() {
@@ -63,13 +66,18 @@ public final class GitCraft extends JavaPlugin {
         HeadDao headDao = new HeadDao(database);
         CommitService commitService = new CommitService(this, exporter, commitDao, branchDao);
 
+        DiffService diffService = new DiffService(getLogger());
+        this.ghostBlockManager = new GhostBlockManager(this);
+
         getServer().getPluginManager().registerEvents(
                 new WandListener(this, selectionManager), this);
+        getServer().getPluginManager().registerEvents(ghostBlockManager, this);
 
         PluginCommand cmd = getCommand("gitcraft");
         if (cmd != null) {
             GitCraftCommand executor = new GitCraftCommand(
-                    this, selectionManager, commitService, commitDao, repoDao, branchDao, headDao);
+                    this, selectionManager, commitService, commitDao, repoDao, branchDao, headDao,
+                    diffService, ghostBlockManager);
             cmd.setExecutor(executor);
             cmd.setTabCompleter(executor);
         } else {
@@ -90,6 +98,9 @@ public final class GitCraft extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (ghostBlockManager != null) {
+            ghostBlockManager.clearAll();
+        }
         if (selectionManager != null) {
             selectionManager.clearAll();
         }

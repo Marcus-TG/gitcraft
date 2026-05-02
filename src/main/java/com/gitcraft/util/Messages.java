@@ -6,7 +6,7 @@ public final class Messages {
 
     public static final String PLAYER_ONLY = "This command can only be run by a player.";
     public static final String NO_PERMISSION = "You don't have permission to use GitCraft.";
-    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout.";
+    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout, diff.";
 
     public static final String INIT_USAGE = "Usage: /gitcraft init <repo-name>";
     public static final String INIT_REPO_EXISTS = "Repo '%s' already exists. Use /gitcraft open %s to reopen it.";
@@ -94,4 +94,22 @@ public final class Messages {
     public static final String CHECKOUT_WE_ERROR          = "Checkout failed: WorldEdit error. Check server logs.";
 
     public static final String WORLDEDIT_MISSING = "WorldEdit plugin not found. GitCraft requires WorldEdit to be installed.";
+
+    public static final String DIFF_USAGE            = "Usage: /gitcraft diff [<id> | <id1> <id2> | clear]";
+    public static final String DIFF_NO_REPO          = "No active repo. Use /gitcraft open <name> first.";
+    public static final String DIFF_INVALID_ID       = "Invalid commit id. Must be a positive number.";
+    public static final String DIFF_SAME_COMMIT      = "Both commits are the same — nothing to diff.";
+    public static final String DIFF_NOT_FOUND        = "Commit %d not found.";
+    public static final String DIFF_NO_HEAD          = "No commits on this branch yet.";
+    public static final String DIFF_NEED_TWO_COMMITS = "Need at least 2 commits to diff.";
+    public static final String DIFF_CROSS_REPO       = "Both commits must belong to the same repo.";
+    public static final String DIFF_CROSS_WORLD      = "Commits span different worlds (%s vs %s) — cross-world diff is not supported.";
+    public static final String DIFF_NOT_OWNER        = "You can only diff your own repos.";
+    public static final String DIFF_DB_FAILED        = "Diff lookup failed: %s";
+    public static final String DIFF_IO_FAILED        = "Failed to load schematic: %s";
+    public static final String DIFF_NO_CHANGES       = "No differences found between these commits.";
+    public static final String DIFF_LARGE_WARN       = "WARNING: This diff has %d changed blocks. Run the same command again within 30 seconds to confirm.";
+    public static final String DIFF_SUCCESS          = "Showing diff (%d blocks changed). Run /gitcraft diff clear to dismiss.";
+    public static final String DIFF_CLEARED          = "Diff dismissed.";
+    public static final String DIFF_WORLD_GONE       = "World '%s' is no longer loaded.";
 }
