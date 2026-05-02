@@ -86,21 +86,56 @@ A "commit" in GitCraft is:
 - Metadata: who committed (player UUID), when (Unix timestamp in milliseconds), commit message
 - Stored and versioned via Gitea on the backend (Phase 5)
 
-### Core SQLite Schema (Phase 1–2)
+### Core SQLite Schema (current: v4)
+
+Repos are per-player. Identity is `(owner_uuid, name)`. The first branch is always `main`.
+Schematic files are stored under `<schematicsDir>/<branchId>/<uuid>.schem`.
 
 ```sql
-CREATE TABLE IF NOT EXISTS commits (
+CREATE TABLE IF NOT EXISTS repos (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_uuid  TEXT    NOT NULL,
+    name        TEXT    NOT NULL,
+    created_at  INTEGER NOT NULL,
+    UNIQUE(owner_uuid, name)
+);
+
+CREATE TABLE IF NOT EXISTS branches (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_id    INTEGER NOT NULL REFERENCES repos(id),
+    name       TEXT    NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(repo_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS heads (
     player_uuid TEXT    NOT NULL,
-    player_name TEXT    NOT NULL,
-    region_name TEXT    NOT NULL,
-    message     TEXT,
-    schem_path  TEXT    NOT NULL,
-    created_at  INTEGER NOT NULL  -- Unix epoch milliseconds
+    repo_id     INTEGER NOT NULL REFERENCES repos(id),
+    branch_id   INTEGER NOT NULL REFERENCES branches(id),
+    PRIMARY KEY (player_uuid, repo_id)
+);
+
+CREATE TABLE IF NOT EXISTS commits (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    branch_id        INTEGER NOT NULL REFERENCES branches(id),
+    player_uuid      TEXT    NOT NULL,
+    player_name      TEXT    NOT NULL,
+    message          TEXT,
+    schem_path       TEXT    NOT NULL,
+    created_at       INTEGER NOT NULL,  -- Unix epoch milliseconds
+    world_uuid       TEXT    NOT NULL,
+    world_name       TEXT    NOT NULL,
+    min_x            INTEGER NOT NULL,
+    min_y            INTEGER NOT NULL,
+    min_z            INTEGER NOT NULL,
+    max_x            INTEGER NOT NULL,
+    max_y            INTEGER NOT NULL,
+    max_z            INTEGER NOT NULL,
+    parent_commit_id INTEGER            -- NULL for the first commit in a branch
 );
 ```
 
-This schema is append-only. Do not modify committed rows.
+Schema changes are managed by `SchemaMigrator`. The `commits` table is append-only — do not modify committed rows.
 
 ---
 
@@ -108,7 +143,7 @@ This schema is append-only. Do not modify committed rows.
 
 **Current phase: 3 of 5.** Do not implement features beyond the current phase. Full roadmap lives in README.md.
 
-When Phase 1 is complete, the user will update this file before starting the next phase.
+When a phase is complete, update this file before starting the next one.
 
 ---
 

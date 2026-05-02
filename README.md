@@ -28,7 +28,7 @@ GitCraft is **not** a block-change audit log. It does not track every block plac
 |-------|----------------|
 | 1 | Region selection + export selected region to `.schem` |
 | 2 | `/gitcraft commit` — attaches player UUID + timestamp, saves schem locally |
-| 3 | `/gitcraft log` / `/gitcraft restore` — commit history and rollback |
+| 3 | `/gitcraft log` / `/gitcraft reset` — commit history and rollback (soft + hard) |
 | 4 | REST API backend container + `/gitcraft push` / `/gitcraft pull` |
 | 5 | Gitea integration + web UI for browsing and forking builds |
 
