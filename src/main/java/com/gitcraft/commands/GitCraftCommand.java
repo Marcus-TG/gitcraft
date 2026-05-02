@@ -1,6 +1,8 @@
 package com.gitcraft.commands;
 
 import com.gitcraft.GitCraft;
+import com.gitcraft.commands.sub.BranchSubcommand;
+import com.gitcraft.commands.sub.CheckoutSubcommand;
 import com.gitcraft.commands.sub.ClearSubcommand;
 import com.gitcraft.commands.sub.CommitSubcommand;
 import com.gitcraft.commands.sub.InitSubcommand;
@@ -43,9 +45,11 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
         subs.put("pos1",    new Pos1Subcommand(manager));
         subs.put("pos2",    new Pos2Subcommand(manager));
         subs.put("clear",   new ClearSubcommand(manager));
-        subs.put("commit",  new CommitSubcommand(plugin, manager, commitService));
-        subs.put("log",     new LogSubcommand(plugin, commitDao, repoDao, branchDao));
-        subs.put("reset",   new ResetSubcommand(plugin, commitDao));
+        subs.put("commit",   new CommitSubcommand(plugin, manager, commitService));
+        subs.put("log",      new LogSubcommand(plugin, commitDao, repoDao, branchDao));
+        subs.put("reset",    new ResetSubcommand(plugin, manager, commitDao));
+        subs.put("branch",   new BranchSubcommand(plugin, manager, commitDao, branchDao, headDao));
+        subs.put("checkout", new CheckoutSubcommand(plugin, manager, commitDao, branchDao, headDao));
     }
 
     @Override

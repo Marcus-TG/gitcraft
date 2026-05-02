@@ -3,6 +3,8 @@ package com.gitcraft.commands.sub;
 import com.gitcraft.GitCraft;
 import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
+import com.gitcraft.selection.Selection;
+import com.gitcraft.selection.SelectionManager;
 import com.gitcraft.util.Messages;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEdit;
@@ -39,6 +41,7 @@ public final class ResetSubcommand implements Subcommand {
     private static final long   CONFIRM_TTL_MS  = 30_000L;
 
     private final GitCraft plugin;
+    private final SelectionManager manager;
     private final CommitDao commitDao;
 
     // TODO: Entries are not evicted on disconnect. 30s TTL is sufficient for now.
@@ -49,8 +52,9 @@ public final class ResetSubcommand implements Subcommand {
         boolean isExpired() { return System.currentTimeMillis() > expiresAt; }
     }
 
-    public ResetSubcommand(GitCraft plugin, CommitDao commitDao) {
+    public ResetSubcommand(GitCraft plugin, SelectionManager manager, CommitDao commitDao) {
         this.plugin = plugin;
+        this.manager = manager;
         this.commitDao = commitDao;
     }
 
@@ -77,12 +81,19 @@ public final class ResetSubcommand implements Subcommand {
             return;
         }
 
+        Selection sel = manager.get(player.getUniqueId()).orElse(null);
+        if (sel == null || sel.branchId() == null) {
+            player.sendMessage(Messages.RESET_NO_REPO);
+            return;
+        }
+        long activeBranchId = sel.branchId();
+
         boolean hard = args.length >= 2 && "--hard".equals(args[1]);
 
         if (!hard) {
             player.sendMessage(Messages.RESET_STARTED);
             Bukkit.getScheduler().runTaskAsynchronously(plugin,
-                    () -> loadAndDispatch(player.getUniqueId(), id));
+                    () -> loadAndDispatch(player.getUniqueId(), id, activeBranchId));
             return;
         }
 
@@ -97,14 +108,14 @@ public final class ResetSubcommand implements Subcommand {
             pending.remove(playerId);
             player.sendMessage(Messages.RESET_HARD_STARTED);
             Bukkit.getScheduler().runTaskAsynchronously(plugin,
-                    () -> loadAndDispatchHard(playerId, id));
+                    () -> loadAndDispatchHard(playerId, id, activeBranchId));
         } else {
             pending.put(playerId, new PendingHardReset(id, System.currentTimeMillis() + CONFIRM_TTL_MS));
             player.sendMessage(String.format(Messages.RESET_HARD_WARN, id));
         }
     }
 
-    private void loadAndDispatch(UUID playerId, long id) {
+    private void loadAndDispatch(UUID playerId, long id, long activeBranchId) {
         CommitRecord record;
         try {
             Optional<CommitRecord> opt = commitDao.findById(id);
@@ -119,6 +130,11 @@ public final class ResetSubcommand implements Subcommand {
             return;
         }
 
+        if (record.branchId() != activeBranchId) {
+            sendOnMain(playerId, String.format(Messages.RESET_WRONG_BRANCH, id));
+            return;
+        }
+
         if (!record.playerUuid().equals(playerId)) {
             sendOnMain(playerId, Messages.RESET_NOT_OWNER);
             return;
@@ -130,7 +146,7 @@ public final class ResetSubcommand implements Subcommand {
         Bukkit.getScheduler().runTask(plugin, () -> paste(playerId, record, clipboard, -1));
     }
 
-    private void loadAndDispatchHard(UUID playerId, long id) {
+    private void loadAndDispatchHard(UUID playerId, long id, long activeBranchId) {
         CommitRecord record;
         List<CommitRecord> toDelete;
         int deletedCount;
@@ -141,6 +157,11 @@ public final class ResetSubcommand implements Subcommand {
                 return;
             }
             record = opt.get();
+
+            if (record.branchId() != activeBranchId) {
+                sendOnMain(playerId, String.format(Messages.RESET_WRONG_BRANCH, id));
+                return;
+            }
 
             if (!record.playerUuid().equals(playerId)) {
                 sendOnMain(playerId, Messages.RESET_NOT_OWNER);

@@ -1,6 +1,7 @@
--- GitCraft schema v4. Idempotent. Run on every plugin enable via SchemaMigrator.
+-- GitCraft schema v5. Idempotent. Run on every plugin enable via SchemaMigrator.
 -- All schema changes happen here; do not CREATE TABLE elsewhere.
 -- v4: repos/branches/heads added; commits.region_name replaced by branch_id (destructive migration).
+-- v5: branches.fork_commit_id added to preserve commit graph lineage across branch boundaries.
 
 CREATE TABLE IF NOT EXISTS repos (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -11,10 +12,11 @@ CREATE TABLE IF NOT EXISTS repos (
 );
 
 CREATE TABLE IF NOT EXISTS branches (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    repo_id    INTEGER NOT NULL REFERENCES repos(id),
-    name       TEXT    NOT NULL,
-    created_at INTEGER NOT NULL,
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_id        INTEGER NOT NULL REFERENCES repos(id),
+    name           TEXT    NOT NULL,
+    created_at     INTEGER NOT NULL,
+    fork_commit_id INTEGER REFERENCES commits(id),
     UNIQUE(repo_id, name)
 );
 

@@ -18,12 +18,14 @@ import java.util.stream.Stream;
  * on every startup. Schema lives in the classpath resource {@code database/schema.sql}.
  *
  * v1-v3 → v4: drops {@code commits} (destructive — region_name replaced by branch_id)
- * and lets schema.sql recreate repos, branches, heads, and commits with the new structure.
+ *             and lets schema.sql recreate repos, branches, heads, and commits.
+ * v4    → v5: adds {@code branches.fork_commit_id} to preserve commit graph lineage
+ *             across branch boundaries.
  */
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 4;
+    private static final int CURRENT_VERSION = 5;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held
@@ -38,8 +40,8 @@ public final class SchemaMigrator {
         ensureSchemaVersionTable(conn);
         int existing = readMaxVersion(conn);
 
-        if (existing < CURRENT_VERSION) {
-            // All pre-v4 installs: drop commits so schema.sql can recreate with branch_id.
+        if (existing < 4) {
+            // Pre-v4: drop commits so schema.sql can recreate with branch_id.
             // repos/branches/heads don't exist yet — DROP IF EXISTS is a safe no-op.
             try (Statement st = conn.createStatement()) {
                 st.execute("DROP INDEX IF EXISTS idx_commits_region");
@@ -49,6 +51,7 @@ public final class SchemaMigrator {
             }
         }
 
+        // Always run schema.sql — idempotent CREATE TABLE IF NOT EXISTS statements.
         String sql = stripLineComments(readResource(SCHEMA_RESOURCE));
         try (Statement st = conn.createStatement()) {
             for (String stmt : sql.split(";")) {
@@ -56,6 +59,16 @@ public final class SchemaMigrator {
                 if (!trimmed.isEmpty()) {
                     st.execute(trimmed);
                 }
+            }
+        }
+
+        if (existing < 5) {
+            // v4 → v5: add fork_commit_id to branches. On fresh installs schema.sql already
+            // includes the column, so suppress the "duplicate column name" error.
+            try (Statement st = conn.createStatement()) {
+                st.execute("ALTER TABLE branches ADD COLUMN fork_commit_id INTEGER REFERENCES commits(id)");
+            } catch (SQLException e) {
+                if (!e.getMessage().toLowerCase().contains("duplicate column name")) throw e;
             }
         }
 

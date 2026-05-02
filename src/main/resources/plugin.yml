@@ -8,7 +8,7 @@ depend: [WorldEdit]
 commands:
   gitcraft:
     description: GitCraft root command.
-    usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|reset <id> [--hard]>
+    usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|reset <id> [--hard]|branch <name>|checkout <branch>>
     permission: gitcraft.use
 permissions:
   gitcraft.use:
@@ -22,4 +22,10 @@ permissions:
     default: op
   gitcraft.reset.hard:
     description: Hard-reset a region (paste + permanently delete all later commits).
+    default: op
+  gitcraft.branch:
+    description: Create a new branch from the current HEAD commit.
+    default: op
+  gitcraft.checkout:
+    description: Switch to an existing branch and restore its latest commit.
     default: op

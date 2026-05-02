@@ -1,6 +1,8 @@
 package com.gitcraft.commit;
 
 import com.gitcraft.GitCraft;
+import com.gitcraft.database.BranchDao;
+import com.gitcraft.database.BranchRecord;
 import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
 import com.gitcraft.export.SchematicExporter;
@@ -28,11 +30,14 @@ public final class CommitService {
     private final GitCraft plugin;
     private final SchematicExporter exporter;
     private final CommitDao commitDao;
+    private final BranchDao branchDao;
 
-    public CommitService(GitCraft plugin, SchematicExporter exporter, CommitDao commitDao) {
+    public CommitService(GitCraft plugin, SchematicExporter exporter,
+                         CommitDao commitDao, BranchDao branchDao) {
         this.plugin = plugin;
         this.exporter = exporter;
         this.commitDao = commitDao;
+        this.branchDao = branchDao;
     }
 
     public void commitAsync(UUID playerId,
@@ -63,6 +68,12 @@ public final class CommitService {
                 schemWritten = true;
 
                 Long parentCommitId = commitDao.findLatestIdByBranch(branchId).orElse(null);
+                if (parentCommitId == null) {
+                    // First commit on a newly-created branch — use the fork point as parent
+                    // so the commit graph retains lineage back to the source branch.
+                    BranchRecord branch = branchDao.findById(branchId).orElse(null);
+                    if (branch != null) parentCommitId = branch.forkCommitId();
+                }
                 long createdAt = System.currentTimeMillis();
                 long id = commitDao.insert(new CommitRecord(
                         null, parentCommitId, branchId, playerId, playerName, message,

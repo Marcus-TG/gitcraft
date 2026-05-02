@@ -30,6 +30,12 @@ public final class Selection {
     public synchronized Long   branchId()   { return branchId;   }
     public synchronized String branchName() { return branchName; }
 
+    public synchronized void clearRegion() {
+        pos1 = null;
+        pos2 = null;
+        worldId = null;
+    }
+
     public synchronized void setPos1(World world, BlockVector3 v) {
         if (worldId != null && !worldId.equals(world.getUID())) {
             // World changed — reset both corners.

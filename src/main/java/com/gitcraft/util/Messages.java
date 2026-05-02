@@ -6,7 +6,7 @@ public final class Messages {
 
     public static final String PLAYER_ONLY = "This command can only be run by a player.";
     public static final String NO_PERMISSION = "You don't have permission to use GitCraft.";
-    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset.";
+    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout.";
 
     public static final String INIT_USAGE = "Usage: /gitcraft init <repo-name>";
     public static final String INIT_REPO_EXISTS = "Repo '%s' already exists. Use /gitcraft open %s to reopen it.";
@@ -55,6 +55,8 @@ public final class Messages {
     public static final String LOG_DB_FAILED = "Failed to read commit history: %s";
 
     public static final String RESET_USAGE = "Usage: /gitcraft reset <id> [--hard]";
+    public static final String RESET_NO_REPO = "No active repo. Use /gitcraft open <name> first.";
+    public static final String RESET_WRONG_BRANCH = "Commit %d does not belong to your current branch.";
     public static final String RESET_INVALID_ID = "Invalid commit id. Must be a positive number.";
     public static final String RESET_STARTED = "Resetting to commit...";
     public static final String RESET_NOT_FOUND = "Commit %d not found.";
@@ -69,6 +71,27 @@ public final class Messages {
     public static final String RESET_HARD_WARN = "WARNING: --hard will permanently delete all commits after #%d on that branch. Run the same command again within 30 seconds to confirm.";
     public static final String RESET_HARD_STARTED = "Executing hard reset...";
     public static final String RESET_HARD_SUCCESS = "Hard reset to commit %d (%d blocks pasted, %d commit(s) deleted).";
+
+    public static final String BRANCH_USAGE        = "Usage: /gitcraft branch <name>";
+    public static final String BRANCH_NO_REPO      = "No active repo. Use /gitcraft open <name> first.";
+    public static final String BRANCH_INVALID_NAME = "Branch name may only contain letters, numbers, hyphens, and underscores (max 64 chars).";
+    public static final String BRANCH_NAME_TAKEN   = "A branch named '%s' already exists in this repo.";
+    public static final String BRANCH_ALREADY_ON   = "You are already on branch '%s'.";
+    public static final String BRANCH_CREATED      = "Created and switched to branch '%s'.";
+    public static final String BRANCH_DB_ERROR     = "Branch creation failed: database error. Check server logs.";
+
+    public static final String CHECKOUT_USAGE             = "Usage: /gitcraft checkout <branch>";
+    public static final String CHECKOUT_NO_REPO           = "No active repo. Use /gitcraft open <name> first.";
+    public static final String CHECKOUT_BRANCH_NOT_FOUND  = "Branch '%s' does not exist in this repo.";
+    public static final String CHECKOUT_ALREADY_ON        = "You are already on branch '%s'.";
+    public static final String CHECKOUT_EMPTY_BRANCH      = "Switched to branch '%s'. No commits yet — region not restored.";
+    public static final String CHECKOUT_WORLD_GONE        = "Switched to branch '%s', but world '%s' is unavailable. Region not restored.";
+    public static final String CHECKOUT_FILE_MISSING      = "Checkout failed: schematic file missing for latest commit.";
+    public static final String CHECKOUT_FILE_CORRUPT      = "Checkout failed: schematic file is corrupt or unreadable.";
+    public static final String CHECKOUT_SUCCESS           = "Switched to branch '%s'. Restored %d blocks.";
+    public static final String CHECKOUT_DB_ERROR          = "Checkout failed: database error. Check server logs.";
+    public static final String CHECKOUT_IO_ERROR          = "Checkout failed: file I/O error. Check server logs.";
+    public static final String CHECKOUT_WE_ERROR          = "Checkout failed: WorldEdit error. Check server logs.";
 
     public static final String WORLDEDIT_MISSING = "WorldEdit plugin not found. GitCraft requires WorldEdit to be installed.";
 }

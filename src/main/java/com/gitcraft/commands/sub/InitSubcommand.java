@@ -65,7 +65,7 @@ public final class InitSubcommand implements Subcommand {
 
             long now = System.currentTimeMillis();
             long repoId   = repoDao.insert(new RepoRecord(null, playerId, name, now));
-            long branchId = branchDao.insert(new BranchRecord(null, repoId, BranchConstants.DEFAULT_BRANCH, now));
+            long branchId = branchDao.insert(new BranchRecord(null, repoId, BranchConstants.DEFAULT_BRANCH, now, null));
             headDao.upsert(new HeadRecord(playerId, repoId, branchId));
 
             Bukkit.getScheduler().runTask(plugin, () -> applyOnMain(playerId, name, repoId, branchId));
