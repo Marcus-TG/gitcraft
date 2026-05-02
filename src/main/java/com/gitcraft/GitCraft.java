@@ -3,8 +3,11 @@ package com.gitcraft;
 import com.gitcraft.commands.GitCraftCommand;
 import com.gitcraft.commit.CommitService;
 import com.gitcraft.config.GitCraftConfig;
+import com.gitcraft.database.BranchDao;
 import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.Database;
+import com.gitcraft.database.HeadDao;
+import com.gitcraft.database.RepoDao;
 import com.gitcraft.database.SchemaMigrator;
 import com.gitcraft.export.SchematicExporter;
 import com.gitcraft.listeners.WandListener;
@@ -46,6 +49,7 @@ public final class GitCraft extends JavaPlugin {
         try {
             database.open();
             new SchemaMigrator().migrate(database);
+            getLogger().info("Schema migrated to v4.");
         } catch (SQLException | IOException e) {
             getLogger().log(Level.SEVERE, "Failed to initialize SQLite database; disabling plugin.", e);
             Bukkit.getPluginManager().disablePlugin(this);
@@ -54,6 +58,9 @@ public final class GitCraft extends JavaPlugin {
 
         SchematicExporter exporter = new SchematicExporter(this);
         CommitDao commitDao = new CommitDao(database);
+        RepoDao repoDao = new RepoDao(database);
+        BranchDao branchDao = new BranchDao(database);
+        HeadDao headDao = new HeadDao(database);
         CommitService commitService = new CommitService(this, exporter, commitDao);
 
         getServer().getPluginManager().registerEvents(
@@ -61,7 +68,8 @@ public final class GitCraft extends JavaPlugin {
 
         PluginCommand cmd = getCommand("gitcraft");
         if (cmd != null) {
-            GitCraftCommand executor = new GitCraftCommand(this, selectionManager, commitService, commitDao);
+            GitCraftCommand executor = new GitCraftCommand(
+                    this, selectionManager, commitService, commitDao, repoDao, branchDao, headDao);
             cmd.setExecutor(executor);
             cmd.setTabCompleter(executor);
         } else {

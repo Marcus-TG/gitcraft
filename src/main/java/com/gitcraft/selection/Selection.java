@@ -15,15 +15,20 @@ public final class Selection {
     private UUID worldId;
     private BlockVector3 pos1;
     private BlockVector3 pos2;
-    private String name;
+    private Long   repoId;
+    private String repoName;
+    private Long   branchId;
+    private String branchName;
 
-    public synchronized void setName(String name) {
-        this.name = name;
-    }
+    public synchronized void setRepoId(long repoId)       { this.repoId   = repoId;   }
+    public synchronized void setRepoName(String repoName) { this.repoName  = repoName; }
+    public synchronized void setBranchId(long branchId)   { this.branchId  = branchId; }
+    public synchronized void setBranchName(String name)   { this.branchName = name;    }
 
-    public synchronized String name() {
-        return name;
-    }
+    public synchronized Long   repoId()     { return repoId;     }
+    public synchronized String repoName()   { return repoName;   }
+    public synchronized Long   branchId()   { return branchId;   }
+    public synchronized String branchName() { return branchName; }
 
     public synchronized void setPos1(World world, BlockVector3 v) {
         if (worldId != null && !worldId.equals(world.getUID())) {

@@ -17,14 +17,13 @@ import java.util.stream.Stream;
  * Runs database migrations once on plugin enable. Idempotent — safe to invoke
  * on every startup. Schema lives in the classpath resource {@code database/schema.sql}.
  *
- * v1 → v2: drops {@code commits} (Phase 2 dev rows are disposable) so it can be
- * recreated with the world + bounding-box columns required by Phase 3 restore.
- * v2 → v3: adds {@code parent_commit_id} via ALTER TABLE (non-destructive; existing rows get NULL).
+ * v1-v3 → v4: drops {@code commits} (destructive — region_name replaced by branch_id)
+ * and lets schema.sql recreate repos, branches, heads, and commits with the new structure.
  */
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 3;
+    private static final int CURRENT_VERSION = 4;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held
@@ -39,15 +38,14 @@ public final class SchemaMigrator {
         ensureSchemaVersionTable(conn);
         int existing = readMaxVersion(conn);
 
-        if (existing < 2) {
+        if (existing < CURRENT_VERSION) {
+            // All pre-v4 installs: drop commits so schema.sql can recreate with branch_id.
+            // repos/branches/heads don't exist yet — DROP IF EXISTS is a safe no-op.
             try (Statement st = conn.createStatement()) {
+                st.execute("DROP INDEX IF EXISTS idx_commits_region");
+                st.execute("DROP INDEX IF EXISTS idx_commits_player");
+                st.execute("DROP INDEX IF EXISTS idx_commits_world");
                 st.execute("DROP TABLE IF EXISTS commits");
-            }
-        }
-
-        if (existing == 2) {
-            try (Statement st = conn.createStatement()) {
-                st.execute("ALTER TABLE commits ADD COLUMN parent_commit_id INTEGER");
             }
         }
 

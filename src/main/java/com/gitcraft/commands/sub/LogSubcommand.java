@@ -1,8 +1,13 @@
 package com.gitcraft.commands.sub;
 
 import com.gitcraft.GitCraft;
+import com.gitcraft.database.BranchDao;
+import com.gitcraft.database.BranchRecord;
 import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
+import com.gitcraft.database.RepoDao;
+import com.gitcraft.database.RepoRecord;
+import com.gitcraft.util.BranchConstants;
 import com.gitcraft.util.Messages;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -12,6 +17,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.logging.Level;
 
@@ -26,10 +32,14 @@ public final class LogSubcommand implements Subcommand {
 
     private final GitCraft plugin;
     private final CommitDao commitDao;
+    private final RepoDao repoDao;
+    private final BranchDao branchDao;
 
-    public LogSubcommand(GitCraft plugin, CommitDao commitDao) {
+    public LogSubcommand(GitCraft plugin, CommitDao commitDao, RepoDao repoDao, BranchDao branchDao) {
         this.plugin = plugin;
         this.commitDao = commitDao;
+        this.repoDao = repoDao;
+        this.branchDao = branchDao;
     }
 
     @Override
@@ -43,14 +53,25 @@ public final class LogSubcommand implements Subcommand {
             return;
         }
 
-        String region = args[0];
+        String repoName   = args[0];
+        String branchName = BranchConstants.DEFAULT_BRANCH;
         int page = 1;
+
         if (args.length >= 2) {
             try {
+                // args[1] is a page number — branch stays at default
                 page = Integer.parseInt(args[1]);
             } catch (NumberFormatException e) {
-                player.sendMessage(Messages.LOG_INVALID_PAGE);
-                return;
+                // args[1] is a branch name
+                branchName = args[1];
+                if (args.length >= 3) {
+                    try {
+                        page = Integer.parseInt(args[2]);
+                    } catch (NumberFormatException e2) {
+                        player.sendMessage(Messages.LOG_INVALID_PAGE);
+                        return;
+                    }
+                }
             }
             if (page < 1) {
                 player.sendMessage(Messages.LOG_INVALID_PAGE);
@@ -58,15 +79,28 @@ public final class LogSubcommand implements Subcommand {
             }
         }
 
+        final String finalBranch = branchName;
         final int finalPage = page;
         final UUID playerId = player.getUniqueId();
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
-                int total = commitDao.countByRegion(region);
-                List<CommitRecord> rows = commitDao.findByRegion(
-                        region, PAGE_SIZE, (finalPage - 1) * PAGE_SIZE);
-                replyOnMain(playerId, region, finalPage, total, rows);
+                Optional<RepoRecord> repoOpt = repoDao.findByOwnerAndName(playerId, repoName);
+                if (repoOpt.isEmpty()) {
+                    sendOnMain(playerId, String.format(Messages.LOG_REPO_NOT_FOUND, repoName));
+                    return;
+                }
+
+                Optional<BranchRecord> branchOpt = branchDao.findByRepoAndName(repoOpt.get().id(), finalBranch);
+                if (branchOpt.isEmpty()) {
+                    sendOnMain(playerId, String.format(Messages.LOG_BRANCH_NOT_FOUND, finalBranch, repoName));
+                    return;
+                }
+                long branchId = branchOpt.get().id();
+
+                int total = commitDao.countByBranch(branchId);
+                List<CommitRecord> rows = commitDao.findByBranch(branchId, PAGE_SIZE, (finalPage - 1) * PAGE_SIZE);
+                replyOnMain(playerId, repoName, finalBranch, finalPage, total, rows);
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.WARNING, "Log query failed", e);
                 sendOnMain(playerId, String.format(Messages.LOG_DB_FAILED, safe(e.getMessage())));
@@ -74,13 +108,16 @@ public final class LogSubcommand implements Subcommand {
         });
     }
 
-    private void replyOnMain(UUID playerId, String region, int page, int total, List<CommitRecord> rows) {
+    private void replyOnMain(UUID playerId, String repoName, String branchName,
+                              int page, int total, List<CommitRecord> rows) {
         Bukkit.getScheduler().runTask(plugin, () -> {
             Player p = Bukkit.getPlayer(playerId);
             if (p == null || !p.isOnline()) return;
 
+            String display = repoName + "/" + branchName;
+
             if (total == 0) {
-                p.sendMessage(String.format(Messages.LOG_EMPTY, region));
+                p.sendMessage(String.format(Messages.LOG_EMPTY, display));
                 return;
             }
 
@@ -90,12 +127,12 @@ public final class LogSubcommand implements Subcommand {
                 return;
             }
 
-            p.sendMessage(String.format(Messages.LOG_HEADER, region, page, totalPages, total));
+            p.sendMessage(String.format(Messages.LOG_HEADER, display, page, totalPages, total));
             for (CommitRecord r : rows) {
                 p.sendMessage(formatRow(r));
             }
             if (page < totalPages) {
-                p.sendMessage(String.format(Messages.LOG_FOOTER_NEXT, region, page + 1));
+                p.sendMessage(String.format(Messages.LOG_FOOTER_NEXT, repoName, branchName, page + 1));
             }
         });
     }

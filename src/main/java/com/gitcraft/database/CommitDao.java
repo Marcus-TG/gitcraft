@@ -16,32 +16,32 @@ public final class CommitDao {
 
     private static final String INSERT_SQL =
             "INSERT INTO commits(" +
-                    "player_uuid, player_name, region_name, message, schem_path, created_at, " +
+                    "branch_id, player_uuid, player_name, message, schem_path, created_at, " +
                     "world_uuid, world_name, min_x, min_y, min_z, max_x, max_y, max_z, parent_commit_id" +
                     ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private static final String SELECT_COLUMNS =
-            "id, parent_commit_id, player_uuid, player_name, region_name, message, schem_path, created_at, " +
+            "id, parent_commit_id, branch_id, player_uuid, player_name, message, schem_path, created_at, " +
                     "world_uuid, world_name, min_x, min_y, min_z, max_x, max_y, max_z";
 
     private static final String FIND_BY_ID_SQL =
             "SELECT " + SELECT_COLUMNS + " FROM commits WHERE id = ?";
 
-    private static final String FIND_BY_REGION_SQL =
-            "SELECT " + SELECT_COLUMNS + " FROM commits WHERE region_name = ? " +
+    private static final String FIND_BY_BRANCH_SQL =
+            "SELECT " + SELECT_COLUMNS + " FROM commits WHERE branch_id = ? " +
                     "ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?";
 
-    private static final String COUNT_BY_REGION_SQL =
-            "SELECT COUNT(*) FROM commits WHERE region_name = ?";
+    private static final String COUNT_BY_BRANCH_SQL =
+            "SELECT COUNT(*) FROM commits WHERE branch_id = ?";
 
-    private static final String FIND_LATEST_ID_BY_REGION_SQL =
-            "SELECT MAX(id) FROM commits WHERE region_name = ?";
+    private static final String FIND_LATEST_ID_BY_BRANCH_SQL =
+            "SELECT MAX(id) FROM commits WHERE branch_id = ?";
 
     private static final String FIND_NEWER_THAN_SQL =
-            "SELECT " + SELECT_COLUMNS + " FROM commits WHERE id > ? AND region_name = ? ORDER BY id ASC";
+            "SELECT " + SELECT_COLUMNS + " FROM commits WHERE id > ? AND branch_id = ? ORDER BY id ASC";
 
     private static final String DELETE_NEWER_THAN_SQL =
-            "DELETE FROM commits WHERE id > ? AND region_name = ?";
+            "DELETE FROM commits WHERE id > ? AND branch_id = ?";
 
     private final Database database;
 
@@ -52,9 +52,9 @@ public final class CommitDao {
     public long insert(CommitRecord r) throws SQLException {
         try (PreparedStatement ps = database.connection().prepareStatement(
                 INSERT_SQL, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, r.playerUuid().toString());
-            ps.setString(2, r.playerName());
-            ps.setString(3, r.regionName());
+            ps.setLong(1, r.branchId());
+            ps.setString(2, r.playerUuid().toString());
+            ps.setString(3, r.playerName());
             ps.setString(4, r.message());
             ps.setString(5, r.schemPath());
             ps.setLong(6, r.createdAt());
@@ -86,10 +86,10 @@ public final class CommitDao {
         }
     }
 
-    public List<CommitRecord> findByRegion(String regionName, int limit, int offset) throws SQLException {
+    public List<CommitRecord> findByBranch(long branchId, int limit, int offset) throws SQLException {
         List<CommitRecord> out = new ArrayList<>();
-        try (PreparedStatement ps = database.connection().prepareStatement(FIND_BY_REGION_SQL)) {
-            ps.setString(1, regionName);
+        try (PreparedStatement ps = database.connection().prepareStatement(FIND_BY_BRANCH_SQL)) {
+            ps.setLong(1, branchId);
             ps.setInt(2, limit);
             ps.setInt(3, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -101,18 +101,18 @@ public final class CommitDao {
         return out;
     }
 
-    public int countByRegion(String regionName) throws SQLException {
-        try (PreparedStatement ps = database.connection().prepareStatement(COUNT_BY_REGION_SQL)) {
-            ps.setString(1, regionName);
+    public int countByBranch(long branchId) throws SQLException {
+        try (PreparedStatement ps = database.connection().prepareStatement(COUNT_BY_BRANCH_SQL)) {
+            ps.setLong(1, branchId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getInt(1) : 0;
             }
         }
     }
 
-    public Optional<Long> findLatestIdByRegion(String regionName) throws SQLException {
-        try (PreparedStatement ps = database.connection().prepareStatement(FIND_LATEST_ID_BY_REGION_SQL)) {
-            ps.setString(1, regionName);
+    public Optional<Long> findLatestIdByBranch(long branchId) throws SQLException {
+        try (PreparedStatement ps = database.connection().prepareStatement(FIND_LATEST_ID_BY_BRANCH_SQL)) {
+            ps.setLong(1, branchId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     long val = rs.getLong(1);
@@ -123,11 +123,11 @@ public final class CommitDao {
         }
     }
 
-    public List<CommitRecord> findNewerThan(long targetId, String regionName) throws SQLException {
+    public List<CommitRecord> findNewerThan(long targetId, long branchId) throws SQLException {
         List<CommitRecord> out = new ArrayList<>();
         try (PreparedStatement ps = database.connection().prepareStatement(FIND_NEWER_THAN_SQL)) {
             ps.setLong(1, targetId);
-            ps.setString(2, regionName);
+            ps.setLong(2, branchId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     out.add(map(rs));
@@ -137,10 +137,10 @@ public final class CommitDao {
         return out;
     }
 
-    public int deleteNewerThan(long targetId, String regionName) throws SQLException {
+    public int deleteNewerThan(long targetId, long branchId) throws SQLException {
         try (PreparedStatement ps = database.connection().prepareStatement(DELETE_NEWER_THAN_SQL)) {
             ps.setLong(1, targetId);
-            ps.setString(2, regionName);
+            ps.setLong(2, branchId);
             return ps.executeUpdate();
         }
     }
@@ -151,9 +151,9 @@ public final class CommitDao {
         return new CommitRecord(
                 rs.getLong("id"),
                 parentCommitId,
+                rs.getLong("branch_id"),
                 UUID.fromString(rs.getString("player_uuid")),
                 rs.getString("player_name"),
-                rs.getString("region_name"),
                 rs.getString("message"),
                 rs.getString("schem_path"),
                 rs.getLong("created_at"),

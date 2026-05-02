@@ -52,9 +52,9 @@ public final class CommitSubcommand implements Subcommand {
             player.sendMessage(Messages.NO_SELECTION);
             return;
         }
-        String regionName = sel.name();
-        if (regionName == null || regionName.isEmpty()) {
-            player.sendMessage(Messages.COMMIT_NO_REGION_NAME);
+        Long branchId = sel.branchId();
+        if (branchId == null) {
+            player.sendMessage(Messages.COMMIT_NO_BRANCH);
             return;
         }
         if (!sel.isComplete()) {
@@ -73,13 +73,14 @@ public final class CommitSubcommand implements Subcommand {
         BlockVector3 pos2 = sel.pos2();
 
         Path schemPath = plugin.gitCraftConfig().schematicsDir()
+                .resolve(String.valueOf(branchId))
                 .resolve(UUID.randomUUID() + ".schem");
 
         player.sendMessage(Messages.COMMIT_STARTED);
         commitService.commitAsync(
                 player.getUniqueId(),
                 player.getName(),
-                regionName,
+                branchId,
                 message,
                 world,
                 pos1,

@@ -1,10 +1,17 @@
 package com.gitcraft.commands.sub;
 
 import com.gitcraft.GitCraft;
+import com.gitcraft.database.BranchDao;
+import com.gitcraft.database.BranchRecord;
 import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
+import com.gitcraft.database.HeadDao;
+import com.gitcraft.database.HeadRecord;
+import com.gitcraft.database.RepoDao;
+import com.gitcraft.database.RepoRecord;
 import com.gitcraft.selection.Selection;
 import com.gitcraft.selection.SelectionManager;
+import com.gitcraft.util.BranchConstants;
 import com.gitcraft.util.Messages;
 import com.sk89q.worldedit.math.BlockVector3;
 import org.bukkit.Bukkit;
@@ -15,6 +22,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
@@ -26,11 +34,18 @@ public final class OpenSubcommand implements Subcommand {
     private final GitCraft plugin;
     private final SelectionManager manager;
     private final CommitDao commitDao;
+    private final RepoDao repoDao;
+    private final BranchDao branchDao;
+    private final HeadDao headDao;
 
-    public OpenSubcommand(GitCraft plugin, SelectionManager manager, CommitDao commitDao) {
+    public OpenSubcommand(GitCraft plugin, SelectionManager manager, CommitDao commitDao,
+                          RepoDao repoDao, BranchDao branchDao, HeadDao headDao) {
         this.plugin = plugin;
         this.manager = manager;
         this.commitDao = commitDao;
+        this.repoDao = repoDao;
+        this.branchDao = branchDao;
+        this.headDao = headDao;
     }
 
     @Override
@@ -49,26 +64,41 @@ public final class OpenSubcommand implements Subcommand {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> lookupAndDispatch(playerId, name));
     }
 
-    private void lookupAndDispatch(UUID playerId, String name) {
-        List<CommitRecord> rows;
+    private void lookupAndDispatch(UUID playerId, String repoName) {
         try {
-            rows = commitDao.findByRegion(name, 1, 0);
+            Optional<RepoRecord> repoOpt = repoDao.findByOwnerAndName(playerId, repoName);
+            if (repoOpt.isEmpty()) {
+                sendOnMain(playerId, String.format(Messages.OPEN_REPO_NOT_FOUND, repoName, repoName));
+                return;
+            }
+            long repoId = repoOpt.get().id();
+
+            Optional<BranchRecord> branchOpt = branchDao.findByRepoAndName(repoId, BranchConstants.DEFAULT_BRANCH);
+            if (branchOpt.isEmpty()) {
+                // Shouldn't happen — init always creates main
+                sendOnMain(playerId, String.format(Messages.OPEN_DB_FAILED, "main branch missing for repo " + repoName));
+                return;
+            }
+            long branchId = branchOpt.get().id();
+
+            // TODO: future schema version should persist bbox in branches/heads so open works without a prior commit
+            List<CommitRecord> rows = commitDao.findByBranch(branchId, 1, 0);
+            if (rows.isEmpty()) {
+                sendOnMain(playerId, String.format(Messages.OPEN_NO_COMMITS, repoName, BranchConstants.DEFAULT_BRANCH));
+                return;
+            }
+
+            headDao.upsert(new HeadRecord(playerId, repoId, branchId));
+
+            CommitRecord record = rows.get(0);
+            Bukkit.getScheduler().runTask(plugin, () -> applyOnMain(playerId, repoName, repoId, branchId, record));
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Open lookup failed", e);
             sendOnMain(playerId, String.format(Messages.OPEN_DB_FAILED, safe(e.getMessage())));
-            return;
         }
-
-        if (rows.isEmpty()) {
-            sendOnMain(playerId, String.format(Messages.OPEN_NOT_FOUND, name));
-            return;
-        }
-
-        CommitRecord record = rows.get(0);
-        Bukkit.getScheduler().runTask(plugin, () -> applyOnMain(playerId, name, record));
     }
 
-    private void applyOnMain(UUID playerId, String name, CommitRecord record) {
+    private void applyOnMain(UUID playerId, String repoName, long repoId, long branchId, CommitRecord record) {
         Player player = Bukkit.getPlayer(playerId);
         if (player == null || !player.isOnline()) return;
 
@@ -79,11 +109,12 @@ public final class OpenSubcommand implements Subcommand {
         }
 
         Selection selection = manager.getOrCreate(playerId);
-        BlockVector3 min = BlockVector3.at(record.minX(), record.minY(), record.minZ());
-        BlockVector3 max = BlockVector3.at(record.maxX(), record.maxY(), record.maxZ());
-        selection.setPos1(world, min);
-        selection.setPos2(world, max);
-        selection.setName(name);
+        selection.setRepoId(repoId);
+        selection.setRepoName(repoName);
+        selection.setBranchId(branchId);
+        selection.setBranchName(BranchConstants.DEFAULT_BRANCH);
+        selection.setPos1(world, BlockVector3.at(record.minX(), record.minY(), record.minZ()));
+        selection.setPos2(world, BlockVector3.at(record.maxX(), record.maxY(), record.maxZ()));
 
         manager.enableSelecting(playerId);
 
@@ -94,7 +125,7 @@ public final class OpenSubcommand implements Subcommand {
         }
 
         player.sendMessage(String.format(Messages.OPEN_RESTORED,
-                name, record.id(),
+                repoName, record.id(),
                 record.minX(), record.minY(), record.minZ(),
                 record.maxX(), record.maxY(), record.maxZ()));
     }

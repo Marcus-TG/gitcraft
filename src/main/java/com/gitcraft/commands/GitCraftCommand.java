@@ -11,7 +11,10 @@ import com.gitcraft.commands.sub.Pos2Subcommand;
 import com.gitcraft.commands.sub.ResetSubcommand;
 import com.gitcraft.commands.sub.Subcommand;
 import com.gitcraft.commit.CommitService;
+import com.gitcraft.database.BranchDao;
 import com.gitcraft.database.CommitDao;
+import com.gitcraft.database.HeadDao;
+import com.gitcraft.database.RepoDao;
 import com.gitcraft.selection.SelectionManager;
 import com.gitcraft.util.Messages;
 import org.bukkit.command.Command;
@@ -33,14 +36,15 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
 
     private final Map<String, Subcommand> subs = new LinkedHashMap<>();
 
-    public GitCraftCommand(GitCraft plugin, SelectionManager manager, CommitService commitService, CommitDao commitDao) {
-        subs.put("init",    new InitSubcommand(plugin, manager));
-        subs.put("open",    new OpenSubcommand(plugin, manager, commitDao));
+    public GitCraftCommand(GitCraft plugin, SelectionManager manager, CommitService commitService,
+                           CommitDao commitDao, RepoDao repoDao, BranchDao branchDao, HeadDao headDao) {
+        subs.put("init",    new InitSubcommand(plugin, manager, repoDao, branchDao, headDao));
+        subs.put("open",    new OpenSubcommand(plugin, manager, commitDao, repoDao, branchDao, headDao));
         subs.put("pos1",    new Pos1Subcommand(manager));
         subs.put("pos2",    new Pos2Subcommand(manager));
         subs.put("clear",   new ClearSubcommand(manager));
         subs.put("commit",  new CommitSubcommand(plugin, manager, commitService));
-        subs.put("log",     new LogSubcommand(plugin, commitDao));
+        subs.put("log",     new LogSubcommand(plugin, commitDao, repoDao, branchDao));
         subs.put("reset",   new ResetSubcommand(plugin, commitDao));
     }
 

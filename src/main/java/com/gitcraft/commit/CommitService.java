@@ -37,7 +37,7 @@ public final class CommitService {
 
     public void commitAsync(UUID playerId,
                             String playerName,
-                            String regionName,
+                            long branchId,
                             String message,
                             World bukkitWorld,
                             BlockVector3 pos1,
@@ -62,15 +62,15 @@ public final class CommitService {
                 exporter.writeSchematic(weWorld, pos1, pos2, schemPath);
                 schemWritten = true;
 
-                Long parentCommitId = commitDao.findLatestIdByRegion(regionName).orElse(null);
+                Long parentCommitId = commitDao.findLatestIdByBranch(branchId).orElse(null);
                 long createdAt = System.currentTimeMillis();
                 long id = commitDao.insert(new CommitRecord(
-                        null, parentCommitId, playerId, playerName, regionName, message,
+                        null, parentCommitId, branchId, playerId, playerName, message,
                         schemPath.toString(), createdAt,
                         worldUuid, worldName, minX, minY, minZ, maxX, maxY, maxZ));
 
-                sendOnMain(playerId, String.format(Messages.COMMIT_SUCCESS, id, regionName));
-                plugin.getLogger().info("Commit " + id + " saved (region=" + regionName
+                sendOnMain(playerId, String.format(Messages.COMMIT_SUCCESS, id));
+                plugin.getLogger().info("Commit " + id + " saved (branch=" + branchId
                         + ", player=" + playerName + ")");
 
             } catch (IOException e) {

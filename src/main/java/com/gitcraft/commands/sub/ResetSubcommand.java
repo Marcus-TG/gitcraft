@@ -147,7 +147,7 @@ public final class ResetSubcommand implements Subcommand {
                 return;
             }
 
-            toDelete = commitDao.findNewerThan(id, record.regionName());
+            toDelete = commitDao.findNewerThan(id, record.branchId());
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Hard reset lookup failed", e);
             sendOnMain(playerId, String.format(Messages.RESET_DB_FAILED, safe(e.getMessage())));
@@ -161,7 +161,7 @@ public final class ResetSubcommand implements Subcommand {
         //       the DB loses these commits while the world still shows the newer state.
         //       Acceptable for a side project; the window is sub-millisecond.
         try {
-            deletedCount = commitDao.deleteNewerThan(id, record.regionName());
+            deletedCount = commitDao.deleteNewerThan(id, record.branchId());
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Hard reset DB delete failed", e);
             sendOnMain(playerId, String.format(Messages.RESET_DB_FAILED, safe(e.getMessage())));
@@ -227,15 +227,14 @@ public final class ResetSubcommand implements Subcommand {
 
             int changed = edit.getBlockChangeCount();
             if (deletedAfter < 0) {
-                sendNow(playerId, String.format(Messages.RESET_SUCCESS,
-                        record.id(), record.regionName(), changed));
+                sendNow(playerId, String.format(Messages.RESET_SUCCESS, record.id(), changed));
                 plugin.getLogger().info("Reset #" + record.id()
-                        + " region=" + record.regionName() + " blocks=" + changed);
+                        + " branch=" + record.branchId() + " blocks=" + changed);
             } else {
                 sendNow(playerId, String.format(Messages.RESET_HARD_SUCCESS,
-                        record.id(), record.regionName(), changed, deletedAfter));
+                        record.id(), changed, deletedAfter));
                 plugin.getLogger().info("Hard reset #" + record.id()
-                        + " region=" + record.regionName()
+                        + " branch=" + record.branchId()
                         + " blocks=" + changed + " deleted=" + deletedAfter);
             }
         } catch (WorldEditException e) {
