@@ -34,6 +34,12 @@ public final class CommitDao {
     private static final String COUNT_BY_REGION_SQL =
             "SELECT COUNT(*) FROM commits WHERE region_name = ?";
 
+    private static final String FIND_NEWER_THAN_SQL =
+            "SELECT " + SELECT_COLUMNS + " FROM commits WHERE id > ? AND region_name = ? ORDER BY id ASC";
+
+    private static final String DELETE_NEWER_THAN_SQL =
+            "DELETE FROM commits WHERE id > ? AND region_name = ?";
+
     private final Database database;
 
     public CommitDao(Database database) {
@@ -97,6 +103,28 @@ public final class CommitDao {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getInt(1) : 0;
             }
+        }
+    }
+
+    public List<CommitRecord> findNewerThan(long targetId, String regionName) throws SQLException {
+        List<CommitRecord> out = new ArrayList<>();
+        try (PreparedStatement ps = database.connection().prepareStatement(FIND_NEWER_THAN_SQL)) {
+            ps.setLong(1, targetId);
+            ps.setString(2, regionName);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(map(rs));
+                }
+            }
+        }
+        return out;
+    }
+
+    public int deleteNewerThan(long targetId, String regionName) throws SQLException {
+        try (PreparedStatement ps = database.connection().prepareStatement(DELETE_NEWER_THAN_SQL)) {
+            ps.setLong(1, targetId);
+            ps.setString(2, regionName);
+            return ps.executeUpdate();
         }
     }
 

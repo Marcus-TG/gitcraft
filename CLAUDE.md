@@ -119,7 +119,8 @@ When Phase 1 is complete, the user will update this file before starting the nex
 /gitcraft open <name>   ← opens an existing region for editing
 /gitcraft commit <msg>  ← exports region + saves commit metadata
 /gitcraft log           ← lists commits for your regions
-/gitcraft restore <id>  ← rolls region back to a prior commit
+/gitcraft reset <id>         ← pastes the target commit's schematic into the world, history unchanged
+/gitcraft reset <id> --hard ← pastes the schematic and permanently deletes all commits after the target ID
 /gitcraft push          ← uploads schem to backend
 /gitcraft pull <id>     ← downloads schem from backend and pastes it
 ```

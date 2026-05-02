@@ -8,7 +8,7 @@ import com.gitcraft.commands.sub.LogSubcommand;
 import com.gitcraft.commands.sub.OpenSubcommand;
 import com.gitcraft.commands.sub.Pos1Subcommand;
 import com.gitcraft.commands.sub.Pos2Subcommand;
-import com.gitcraft.commands.sub.RestoreSubcommand;
+import com.gitcraft.commands.sub.ResetSubcommand;
 import com.gitcraft.commands.sub.Subcommand;
 import com.gitcraft.commit.CommitService;
 import com.gitcraft.database.CommitDao;
@@ -41,7 +41,7 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
         subs.put("clear",   new ClearSubcommand(manager));
         subs.put("commit",  new CommitSubcommand(plugin, manager, commitService));
         subs.put("log",     new LogSubcommand(plugin, commitDao));
-        subs.put("restore", new RestoreSubcommand(plugin, commitDao));
+        subs.put("reset",   new ResetSubcommand(plugin, commitDao));
     }
 
     @Override

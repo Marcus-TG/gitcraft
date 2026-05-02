@@ -8,15 +8,18 @@ depend: [WorldEdit]
 commands:
   gitcraft:
     description: GitCraft root command.
-    usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|restore <id>>
+    usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|reset <id> [--hard]>
     permission: gitcraft.use
 permissions:
   gitcraft.use:
     description: Use GitCraft commands.
-    default: true
+    default: op
   gitcraft.log:
     description: View commit history for a region.
-    default: true
-  gitcraft.restore:
-    description: Restore a region to a prior commit (overwrites blocks).
+    default: op
+  gitcraft.reset:
+    description: Reset a region to a prior commit (paste only, history intact).
+    default: op
+  gitcraft.reset.hard:
+    description: Hard-reset a region (paste + permanently delete all later commits).
     default: op
