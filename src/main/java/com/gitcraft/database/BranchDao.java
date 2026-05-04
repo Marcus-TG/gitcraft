@@ -4,6 +4,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /** Data access for the {@code branches} table. All methods must run on the async scheduler. */
@@ -49,6 +51,40 @@ public final class BranchDao {
             ps.setLong(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
+            }
+        }
+    }
+
+    public List<BranchRecord> findByRepo(long repoId) throws SQLException {
+        List<BranchRecord> out = new ArrayList<>();
+        try (PreparedStatement ps = database.connection().prepareStatement(
+                "SELECT id, repo_id, name, created_at, fork_commit_id FROM branches WHERE repo_id = ? ORDER BY created_at ASC, id ASC")) {
+            ps.setLong(1, repoId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(map(rs));
+            }
+        }
+        return out;
+    }
+
+    public List<String> findNamesByRepo(long repoId) throws SQLException {
+        List<String> out = new ArrayList<>();
+        try (PreparedStatement ps = database.connection().prepareStatement(
+                "SELECT name FROM branches WHERE repo_id = ? ORDER BY name ASC")) {
+            ps.setLong(1, repoId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(rs.getString(1));
+            }
+        }
+        return out;
+    }
+
+    public int countByRepo(long repoId) throws SQLException {
+        try (PreparedStatement ps = database.connection().prepareStatement(
+                "SELECT COUNT(*) FROM branches WHERE repo_id = ?")) {
+            ps.setLong(1, repoId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
             }
         }
     }

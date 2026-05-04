@@ -8,9 +8,11 @@ import com.gitcraft.commands.sub.CommitSubcommand;
 import com.gitcraft.commands.sub.DiffSubcommand;
 import com.gitcraft.commands.sub.InitSubcommand;
 import com.gitcraft.commands.sub.LogSubcommand;
+import com.gitcraft.commands.sub.MergeSubcommand;
 import com.gitcraft.commands.sub.OpenSubcommand;
 import com.gitcraft.commands.sub.Pos1Subcommand;
 import com.gitcraft.commands.sub.Pos2Subcommand;
+import com.gitcraft.commands.sub.ReposSubcommand;
 import com.gitcraft.commands.sub.ResetSubcommand;
 import com.gitcraft.commands.sub.Subcommand;
 import com.gitcraft.commit.CommitService;
@@ -20,6 +22,7 @@ import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.RepoDao;
 import com.gitcraft.diff.DiffService;
 import com.gitcraft.diff.GhostBlockManager;
+import com.gitcraft.merge.MergeService;
 import com.gitcraft.selection.SelectionManager;
 import com.gitcraft.util.Messages;
 import org.bukkit.command.Command;
@@ -43,7 +46,8 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
 
     public GitCraftCommand(GitCraft plugin, SelectionManager manager, CommitService commitService,
                            CommitDao commitDao, RepoDao repoDao, BranchDao branchDao, HeadDao headDao,
-                           DiffService diffService, GhostBlockManager ghostBlockManager) {
+                           DiffService diffService, GhostBlockManager ghostBlockManager,
+                           MergeService mergeService) {
         subs.put("init",     new InitSubcommand(plugin, manager, repoDao, branchDao, headDao));
         subs.put("open",     new OpenSubcommand(plugin, manager, commitDao, repoDao, branchDao, headDao,
                 ghostBlockManager));
@@ -58,6 +62,8 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
                 ghostBlockManager));
         subs.put("diff",     new DiffSubcommand(plugin, manager, commitDao, branchDao, repoDao, headDao,
                 diffService, ghostBlockManager));
+        subs.put("merge",    new MergeSubcommand(plugin, manager, branchDao, mergeService));
+        subs.put("repos",    new ReposSubcommand(plugin, repoDao, branchDao));
     }
 
     @Override

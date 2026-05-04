@@ -27,7 +27,7 @@ import java.util.stream.Stream;
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 6;
+    private static final int CURRENT_VERSION = 7;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held
@@ -79,6 +79,16 @@ public final class SchemaMigrator {
             // the column, so suppress the "duplicate column name" error.
             try (Statement st = conn.createStatement()) {
                 st.execute("ALTER TABLE heads ADD COLUMN commit_id INTEGER REFERENCES commits(id)");
+            } catch (SQLException e) {
+                if (!e.getMessage().toLowerCase().contains("duplicate column name")) throw e;
+            }
+        }
+
+        if (existing < 7) {
+            // v6 → v7: add merge_parent_commit_id to commits. Fresh installs already have it
+            // via schema.sql; suppress duplicate-column error.
+            try (Statement st = conn.createStatement()) {
+                st.execute("ALTER TABLE commits ADD COLUMN merge_parent_commit_id INTEGER");
             } catch (SQLException e) {
                 if (!e.getMessage().toLowerCase().contains("duplicate column name")) throw e;
             }

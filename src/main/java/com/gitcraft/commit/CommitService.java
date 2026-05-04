@@ -57,6 +57,26 @@ public final class CommitService {
                             BlockVector3 pos1,
                             BlockVector3 pos2,
                             Path schemPath) {
+        commitAsync(playerId, playerName, branchId, repoId, message, bukkitWorld,
+                pos1, pos2, schemPath, null, null);
+    }
+
+    /**
+     * Variant used by merge — explicit parent ids (null parentOverride means resolve
+     * normally from latest-on-branch / fork point). {@code mergeParentId} is the
+     * source-branch HEAD that was merged in; null for a normal commit.
+     */
+    public void commitAsync(UUID playerId,
+                            String playerName,
+                            long branchId,
+                            long repoId,
+                            String message,
+                            World bukkitWorld,
+                            BlockVector3 pos1,
+                            BlockVector3 pos2,
+                            Path schemPath,
+                            Long parentOverride,
+                            Long mergeParentId) {
         // adapt() must run on the main thread.
         com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(bukkitWorld);
 
@@ -76,16 +96,21 @@ public final class CommitService {
                 exporter.writeSchematic(weWorld, pos1, pos2, schemPath);
                 schemWritten = true;
 
-                Long parentCommitId = commitDao.findLatestIdByBranch(branchId).orElse(null);
-                if (parentCommitId == null) {
-                    // First commit on a newly-created branch — use the fork point as parent
-                    // so the commit graph retains lineage back to the source branch.
-                    BranchRecord branch = branchDao.findById(branchId).orElse(null);
-                    if (branch != null) parentCommitId = branch.forkCommitId();
+                Long parentCommitId;
+                if (parentOverride != null) {
+                    parentCommitId = parentOverride;
+                } else {
+                    parentCommitId = commitDao.findLatestIdByBranch(branchId).orElse(null);
+                    if (parentCommitId == null) {
+                        // First commit on a newly-created branch — use the fork point as parent
+                        // so the commit graph retains lineage back to the source branch.
+                        BranchRecord branch = branchDao.findById(branchId).orElse(null);
+                        if (branch != null) parentCommitId = branch.forkCommitId();
+                    }
                 }
                 long createdAt = System.currentTimeMillis();
                 long id = commitDao.insert(new CommitRecord(
-                        null, parentCommitId, branchId, playerId, playerName, message,
+                        null, parentCommitId, mergeParentId, branchId, playerId, playerName, message,
                         schemPath.toString(), createdAt,
                         worldUuid, worldName, minX, minY, minZ, maxX, maxY, maxZ));
 

@@ -5,12 +5,15 @@ import java.util.UUID;
 /**
  * Row in the {@code commits} table. {@code id} is null on insert (auto-assigned by SQLite).
  * {@code parentCommitId} is null for the first commit in a branch.
+ * {@code mergeParentCommitId} is non-null only for merge commits — the source-branch HEAD
+ * at merge time. With both parent fields set, the commit graph is a true DAG.
  * World UUID + min/max corners are required to deterministically restore a snapshot
  * to its original location.
  */
 public record CommitRecord(
         Long id,
         Long parentCommitId,
+        Long mergeParentCommitId,
         long branchId,
         UUID playerUuid,
         String playerName,

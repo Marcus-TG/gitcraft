@@ -8,7 +8,7 @@ depend: [WorldEdit]
 commands:
   gitcraft:
     description: GitCraft root command.
-    usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|reset <id> [--hard]|branch <name>|checkout <branch>>
+    usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|reset <id> [--hard]|branch <name>|checkout <branch>|merge <branch>>
     permission: gitcraft.use
 permissions:
   gitcraft.use:
@@ -31,4 +31,7 @@ permissions:
     default: op
   gitcraft.diff:
     description: Visualize block differences between two commits as ghost blocks.
+    default: op
+  gitcraft.merge:
+    description: Merge another branch into the current branch with three-way conflict resolution.
     default: op

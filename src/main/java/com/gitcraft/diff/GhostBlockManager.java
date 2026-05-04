@@ -23,9 +23,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class GhostBlockManager implements Listener {
 
-    private static final Color COLOR_ADDED   = Color.LIME;
-    private static final Color COLOR_REMOVED = Color.RED;
-    private static final Color COLOR_CHANGED = Color.YELLOW;
+    private static final Color COLOR_ADDED    = Color.LIME;
+    private static final Color COLOR_REMOVED  = Color.RED;
+    private static final Color COLOR_CHANGED  = Color.YELLOW;
+    private static final Color COLOR_CONFLICT = Color.fromRGB(170, 0, 255);
 
     // Shrink 0.5% per face and nudge inward so the ghost sits just inside the real block
     private static final Transformation GHOST_TRANSFORM = new Transformation(
@@ -58,9 +59,10 @@ public final class GhostBlockManager implements Listener {
                     : ghost.afterBlock();
 
             Color glowColor = switch (ghost.type()) {
-                case ADDED   -> COLOR_ADDED;
-                case REMOVED -> COLOR_REMOVED;
-                case CHANGED -> COLOR_CHANGED;
+                case ADDED    -> COLOR_ADDED;
+                case REMOVED  -> COLOR_REMOVED;
+                case CHANGED  -> COLOR_CHANGED;
+                case CONFLICT -> COLOR_CONFLICT;
             };
 
             BlockDisplay entity = world.spawn(loc, BlockDisplay.class, e -> {

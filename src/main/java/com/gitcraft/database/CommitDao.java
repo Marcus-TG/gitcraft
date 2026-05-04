@@ -5,7 +5,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,11 +19,13 @@ public final class CommitDao {
     private static final String INSERT_SQL =
             "INSERT INTO commits(" +
                     "branch_id, player_uuid, player_name, message, schem_path, created_at, " +
-                    "world_uuid, world_name, min_x, min_y, min_z, max_x, max_y, max_z, parent_commit_id" +
-                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    "world_uuid, world_name, min_x, min_y, min_z, max_x, max_y, max_z, " +
+                    "parent_commit_id, merge_parent_commit_id" +
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private static final String SELECT_COLUMNS =
-            "id, parent_commit_id, branch_id, player_uuid, player_name, message, schem_path, created_at, " +
+            "id, parent_commit_id, merge_parent_commit_id, branch_id, player_uuid, player_name, " +
+                    "message, schem_path, created_at, " +
                     "world_uuid, world_name, min_x, min_y, min_z, max_x, max_y, max_z";
 
     private static final String FIND_BY_ID_SQL =
@@ -42,6 +46,9 @@ public final class CommitDao {
 
     private static final String DELETE_NEWER_THAN_SQL =
             "DELETE FROM commits WHERE id > ? AND branch_id = ?";
+
+    private static final String FIND_PARENT_LINKS_BY_BRANCHES_PREFIX =
+            "SELECT id, parent_commit_id, merge_parent_commit_id FROM commits WHERE branch_id IN (";
 
     private final Database database;
 
@@ -67,6 +74,7 @@ public final class CommitDao {
             ps.setInt(13, r.maxY());
             ps.setInt(14, r.maxZ());
             ps.setObject(15, r.parentCommitId());
+            ps.setObject(16, r.mergeParentCommitId());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -145,12 +153,50 @@ public final class CommitDao {
         }
     }
 
+    /**
+     * Bulk-load (id → ParentLink) for every commit on the given branches. Used by merge
+     * to walk parent chains in memory without N+1 round trips.
+     */
+    public Map<Long, ParentLink> findParentLinksByBranches(List<Long> branchIds) throws SQLException {
+        if (branchIds.isEmpty()) return Map.of();
+        StringBuilder sql = new StringBuilder(FIND_PARENT_LINKS_BY_BRANCHES_PREFIX);
+        for (int i = 0; i < branchIds.size(); i++) {
+            if (i > 0) sql.append(',');
+            sql.append('?');
+        }
+        sql.append(')');
+
+        Map<Long, ParentLink> out = new HashMap<>();
+        try (PreparedStatement ps = database.connection().prepareStatement(sql.toString())) {
+            for (int i = 0; i < branchIds.size(); i++) {
+                ps.setLong(i + 1, branchIds.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    long id = rs.getLong("id");
+                    long rawP = rs.getLong("parent_commit_id");
+                    Long parent = rs.wasNull() ? null : rawP;
+                    long rawM = rs.getLong("merge_parent_commit_id");
+                    Long mergeParent = rs.wasNull() ? null : rawM;
+                    out.put(id, new ParentLink(parent, mergeParent));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Lightweight projection of a commit's parent edges for graph walks. */
+    public record ParentLink(Long parentCommitId, Long mergeParentCommitId) {}
+
     private CommitRecord map(ResultSet rs) throws SQLException {
         long rawParent = rs.getLong("parent_commit_id");
         Long parentCommitId = rs.wasNull() ? null : rawParent;
+        long rawMerge = rs.getLong("merge_parent_commit_id");
+        Long mergeParentCommitId = rs.wasNull() ? null : rawMerge;
         return new CommitRecord(
                 rs.getLong("id"),
                 parentCommitId,
+                mergeParentCommitId,
                 rs.getLong("branch_id"),
                 UUID.fromString(rs.getString("player_uuid")),
                 rs.getString("player_name"),

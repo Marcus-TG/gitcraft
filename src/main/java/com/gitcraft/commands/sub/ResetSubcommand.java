@@ -8,15 +8,13 @@ import com.gitcraft.database.HeadRecord;
 import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.selection.Selection;
 import com.gitcraft.selection.SelectionManager;
+import com.gitcraft.util.ClipboardLoader;
 import com.gitcraft.util.Messages;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.session.ClipboardHolder;
@@ -24,9 +22,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -233,16 +229,7 @@ public final class ResetSubcommand implements Subcommand {
             return null;
         }
         try {
-            File file = schemPath.toFile();
-            ClipboardFormat fmt = ClipboardFormats.findByFile(file);
-            if (fmt == null) {
-                sendOnMain(playerId, Messages.RESET_BAD_FORMAT);
-                return null;
-            }
-            try (InputStream in = Files.newInputStream(schemPath);
-                 ClipboardReader reader = fmt.getReader(in)) {
-                return reader.read();
-            }
+            return ClipboardLoader.load(schemPath);
         } catch (IOException e) {
             plugin.getLogger().log(Level.WARNING, "Failed to read schematic " + schemPath, e);
             sendOnMain(playerId, String.format(Messages.RESET_IO_FAILED, safe(e.getMessage())));

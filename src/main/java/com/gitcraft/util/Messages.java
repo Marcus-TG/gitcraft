@@ -6,7 +6,7 @@ public final class Messages {
 
     public static final String PLAYER_ONLY = "This command can only be run by a player.";
     public static final String NO_PERMISSION = "You don't have permission to use GitCraft.";
-    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout, diff.";
+    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout, diff, merge, repos.";
 
     public static final String INIT_USAGE = "Usage: /gitcraft init <repo-name>";
     public static final String INIT_REPO_EXISTS = "Repo '%s' already exists. Use /gitcraft open %s to reopen it.";
@@ -72,7 +72,12 @@ public final class Messages {
     public static final String RESET_HARD_STARTED = "Executing hard reset...";
     public static final String RESET_HARD_SUCCESS = "Hard reset to commit %d (%d blocks pasted, %d commit(s) deleted).";
 
-    public static final String BRANCH_USAGE        = "Usage: /gitcraft branch <name>";
+    public static final String BRANCH_USAGE        = "Usage: /gitcraft branch [<name>]";
+    public static final String BRANCH_LIST_HEADER  = "Branches in repo '%s':";
+    public static final String BRANCH_LIST_ROW     = "%s %s  \"%s\"";
+    public static final String BRANCH_LIST_EMPTY   = "No branches found in this repo.";
+    public static final String BRANCH_LIST_NO_COMMITS = "(no commits yet)";
+    public static final String BRANCH_LIST_DB_ERROR = "Failed to list branches: %s";
     public static final String BRANCH_NO_REPO      = "No active repo. Use /gitcraft open <name> first.";
     public static final String BRANCH_INVALID_NAME = "Branch name may only contain letters, numbers, hyphens, and underscores (max 64 chars).";
     public static final String BRANCH_NAME_TAKEN   = "A branch named '%s' already exists in this repo.";
@@ -112,4 +117,36 @@ public final class Messages {
     public static final String DIFF_SUCCESS          = "Showing diff (%d blocks changed). Run /gitcraft diff clear to dismiss.";
     public static final String DIFF_CLEARED          = "Diff dismissed.";
     public static final String DIFF_WORLD_GONE       = "World '%s' is no longer loaded.";
+
+    public static final String MERGE_USAGE              = "Usage: /gitcraft merge <branch> | accept ours|theirs | continue [msg] | abort | status";
+    public static final String MERGE_ACCEPT_USAGE       = "Usage: /gitcraft merge accept ours|theirs";
+    public static final String MERGE_NO_REPO            = "No active repo/branch. Use /gitcraft open <name> first.";
+    public static final String MERGE_ALREADY_IN_PROGRESS = "A merge is already in progress. Use /gitcraft merge continue or /gitcraft merge abort.";
+    public static final String MERGE_NONE               = "No merge in progress.";
+    public static final String MERGE_SAME_BRANCH        = "Cannot merge a branch into itself.";
+    public static final String MERGE_BRANCH_NOT_FOUND   = "Branch '%s' does not exist in this repo.";
+    public static final String MERGE_TARGET_EMPTY       = "Your current branch has no commits — nothing to merge into.";
+    public static final String MERGE_SOURCE_EMPTY       = "Source branch has no commits.";
+    public static final String MERGE_UNRELATED          = "No common ancestor found between these branches — refusing to merge unrelated histories.";
+    public static final String MERGE_CROSS_WORLD        = "Branches span different worlds (%s vs %s). Cross-world merge is not supported.";
+    public static final String MERGE_STARTED            = "Computing merge...";
+    public static final String MERGE_RESOLVING          = "Merging '%s' into '%s': %d auto-applied, %d conflicts. Use /gitcraft merge accept ours|theirs, then /gitcraft merge continue. Or /gitcraft merge abort.";
+    public static final String MERGE_FAST_FORWARD       = "Fast-forward merge of '%s' into '%s' (%d blocks). Finalizing...";
+    public static final String MERGE_ALREADY_UP_TO_DATE = "Already up to date.";
+    public static final String MERGE_STALE_BASE_WARN    = "HEAD has moved since merge started. Proceeding with original snapshot.";
+    public static final String MERGE_ACCEPTED           = "Resolved %d conflicts to '%s'. Run /gitcraft merge continue to commit, or place blocks manually first.";
+    public static final String MERGE_UNRESOLVED         = "%d conflicts unresolved. Use /gitcraft merge accept ours|theirs or place blocks then continue.";
+    public static final String MERGE_FINALIZING         = "Recording merge commit...";
+    public static final String MERGE_ABORTED            = "Merge aborted. World restored to pre-merge state.";
+    public static final String MERGE_STATUS             = "Merging '%s' -> '%s': %d auto-applied, %d conflicts (%d unresolved).";
+    public static final String MERGE_WORLD_GONE         = "World '%s' is no longer loaded.";
+    public static final String MERGE_DB_ERROR           = "Merge failed: database error. Check server logs.";
+    public static final String MERGE_DB_FAILED          = "Merge DB lookup failed: %s";
+    public static final String MERGE_IO_FAILED          = "Failed to load merge schematic: %s";
+    public static final String MERGE_WE_ERROR           = "Merge failed: WorldEdit error. Check server logs.";
+
+    public static final String REPOS_HEADER   = "Your repos (%d):";
+    public static final String REPOS_ROW      = "%s  branches: %d  created: %s";
+    public static final String REPOS_EMPTY    = "You have no repos. Use /gitcraft init <name> to create one.";
+    public static final String REPOS_DB_ERROR = "Failed to list repos: %s";
 }

@@ -1,21 +1,15 @@
 package com.gitcraft.diff;
 
 import com.gitcraft.database.CommitRecord;
+import com.gitcraft.util.ClipboardLoader;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
@@ -29,8 +23,8 @@ public final class DiffService {
     }
 
     public DiffResult compute(CommitRecord before, CommitRecord after) throws IOException {
-        Clipboard clipBefore = loadClipboard(before.schemPath());
-        Clipboard clipAfter  = loadClipboard(after.schemPath());
+        Clipboard clipBefore = ClipboardLoader.load(before.schemPath());
+        Clipboard clipAfter  = ClipboardLoader.load(after.schemPath());
 
         // TODO(OQ1): Validate clipboard coordinate space at runtime.
         // Expected: clip.getRegion().getMinimumPoint() == BlockVector3.at(commit.minX, minY, minZ).
@@ -95,18 +89,4 @@ public final class DiffService {
         return type == BlockTypes.AIR || type == BlockTypes.CAVE_AIR || type == BlockTypes.VOID_AIR;
     }
 
-    private Clipboard loadClipboard(String schemPath) throws IOException {
-        File file = Paths.get(schemPath).toFile();
-        if (!file.exists()) {
-            throw new IOException("Schematic file missing: " + schemPath);
-        }
-        ClipboardFormat fmt = ClipboardFormats.findByFile(file);
-        if (fmt == null) {
-            throw new IOException("Unrecognized schematic format: " + schemPath);
-        }
-        try (InputStream in = Files.newInputStream(file.toPath());
-             ClipboardReader reader = fmt.getReader(in)) {
-            return reader.read();
-        }
-    }
 }
