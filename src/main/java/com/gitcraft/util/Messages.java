@@ -6,7 +6,7 @@ public final class Messages {
 
     public static final String PLAYER_ONLY = "This command can only be run by a player.";
     public static final String NO_PERMISSION = "You don't have permission to use GitCraft.";
-    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout, diff, merge, repos.";
+    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout, diff, merge, repos, stash.";
 
     public static final String INIT_USAGE = "Usage: /gitcraft init <repo-name>";
     public static final String INIT_REPO_EXISTS = "Repo '%s' already exists. Use /gitcraft open %s to reopen it.";
@@ -149,4 +149,16 @@ public final class Messages {
     public static final String REPOS_ROW      = "%s  branches: %d  created: %s";
     public static final String REPOS_EMPTY    = "You have no repos. Use /gitcraft init <name> to create one.";
     public static final String REPOS_DB_ERROR = "Failed to list repos: %s";
+
+    public static final String STASH_NO_REPO          = "No active repo. Use /gitcraft open <name> first.";
+    public static final String STASH_INVALID_MESSAGE  = "Stash message cannot contain newlines.";
+    public static final String STASH_MESSAGE_TOO_LONG = "Stash message exceeds 500 characters.";
+    public static final String STASH_PUSHED           = "Stashed selection #%d.";
+    public static final String STASH_EMPTY            = "No stashes found for this repo.";
+    public static final String STASH_BRANCH_GONE      = "Stash references a branch that no longer exists. Entry removed.";
+    public static final String STASH_WORLD_GONE       = "World '%s' is no longer loaded. Stash retained — try again when the world is back.";
+    public static final String STASH_POPPED           = "Popped stash #%d on '%s'. Pos1 (%d, %d, %d) Pos2 (%d, %d, %d).";
+    public static final String STASH_LIST_HEADER      = "Stashes (%d):";
+    public static final String STASH_LIST_ROW         = "#%d  %s  [%d,%d,%d]..[%d,%d,%d]  \"%s\"";
+    public static final String STASH_DB_FAILED        = "Stash operation failed: %s";
 }

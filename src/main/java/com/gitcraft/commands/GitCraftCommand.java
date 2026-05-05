@@ -14,12 +14,14 @@ import com.gitcraft.commands.sub.Pos1Subcommand;
 import com.gitcraft.commands.sub.Pos2Subcommand;
 import com.gitcraft.commands.sub.ReposSubcommand;
 import com.gitcraft.commands.sub.ResetSubcommand;
+import com.gitcraft.commands.sub.StashSubcommand;
 import com.gitcraft.commands.sub.Subcommand;
 import com.gitcraft.commit.CommitService;
 import com.gitcraft.database.BranchDao;
 import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.RepoDao;
+import com.gitcraft.database.StashDao;
 import com.gitcraft.diff.DiffService;
 import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.merge.MergeService;
@@ -46,6 +48,7 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
 
     public GitCraftCommand(GitCraft plugin, SelectionManager manager, CommitService commitService,
                            CommitDao commitDao, RepoDao repoDao, BranchDao branchDao, HeadDao headDao,
+                           StashDao stashDao,
                            DiffService diffService, GhostBlockManager ghostBlockManager,
                            MergeService mergeService) {
         subs.put("init",     new InitSubcommand(plugin, manager, repoDao, branchDao, headDao));
@@ -64,6 +67,7 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
                 diffService, ghostBlockManager));
         subs.put("merge",    new MergeSubcommand(plugin, manager, branchDao, mergeService));
         subs.put("repos",    new ReposSubcommand(plugin, repoDao, branchDao));
+        subs.put("stash",    new StashSubcommand(plugin, manager, stashDao, branchDao, headDao));
     }
 
     @Override

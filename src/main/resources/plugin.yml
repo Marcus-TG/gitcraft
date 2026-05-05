@@ -8,7 +8,7 @@ depend: [WorldEdit]
 commands:
   gitcraft:
     description: GitCraft root command.
-    usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|reset <id> [--hard]|branch <name>|checkout <branch>|merge <branch>>
+    usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|reset <id> [--hard]|branch <name>|checkout <branch>|merge <branch>|stash [pop|list]>
     permission: gitcraft.use
 permissions:
   gitcraft.use:
@@ -34,4 +34,7 @@ permissions:
     default: op
   gitcraft.merge:
     description: Merge another branch into the current branch with three-way conflict resolution.
+    default: op
+  gitcraft.stash:
+    description: Save and restore selection state per repo (push/pop/list).
     default: op

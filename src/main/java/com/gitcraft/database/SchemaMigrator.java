@@ -23,11 +23,15 @@ import java.util.stream.Stream;
  *             across branch boundaries.
  * v5    → v6: adds {@code heads.commit_id} to track which specific commit HEAD points at
  *             within a branch, rather than always resolving to MAX(id).
+ * v6    → v7: adds {@code commits.merge_parent_commit_id} — second parent for merge commits.
+ * v7    → v8: adds {@code stashes} table — per-(player, repo) LIFO stack of saved selections.
+ *             New table only; schema.sql's {@code CREATE TABLE IF NOT EXISTS} handles both
+ *             fresh installs and upgrades, so no explicit ALTER block is needed here.
  */
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 7;
+    private static final int CURRENT_VERSION = 8;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held

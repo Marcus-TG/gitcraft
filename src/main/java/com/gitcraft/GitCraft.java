@@ -9,6 +9,7 @@ import com.gitcraft.database.Database;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.RepoDao;
 import com.gitcraft.database.SchemaMigrator;
+import com.gitcraft.database.StashDao;
 import com.gitcraft.diff.DiffService;
 import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.export.SchematicExporter;
@@ -54,7 +55,7 @@ public final class GitCraft extends JavaPlugin {
         try {
             database.open();
             new SchemaMigrator().migrate(database);
-            getLogger().info("Schema migrated to v7.");
+            getLogger().info("Schema migrated to v8.");
         } catch (SQLException | IOException e) {
             getLogger().log(Level.SEVERE, "Failed to initialize SQLite database; disabling plugin.", e);
             Bukkit.getPluginManager().disablePlugin(this);
@@ -66,6 +67,7 @@ public final class GitCraft extends JavaPlugin {
         RepoDao repoDao = new RepoDao(database);
         BranchDao branchDao = new BranchDao(database);
         HeadDao headDao = new HeadDao(database);
+        StashDao stashDao = new StashDao(database);
         DiffService diffService = new DiffService(getLogger());
         this.ghostBlockManager = new GhostBlockManager(this);
         CommitService commitService = new CommitService(this, exporter, commitDao, branchDao, headDao,
@@ -83,7 +85,7 @@ public final class GitCraft extends JavaPlugin {
         if (cmd != null) {
             GitCraftCommand executor = new GitCraftCommand(
                     this, selectionManager, commitService, commitDao, repoDao, branchDao, headDao,
-                    diffService, ghostBlockManager, mergeService);
+                    stashDao, diffService, ghostBlockManager, mergeService);
             cmd.setExecutor(executor);
             cmd.setTabCompleter(executor);
         } else {
