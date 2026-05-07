@@ -58,7 +58,7 @@ public final class CommitService {
                             BlockVector3 pos2,
                             Path schemPath) {
         commitAsync(playerId, playerName, branchId, repoId, message, bukkitWorld,
-                pos1, pos2, schemPath, null, null);
+                pos1, pos2, schemPath, null, null, null);
     }
 
     /**
@@ -77,6 +77,27 @@ public final class CommitService {
                             Path schemPath,
                             Long parentOverride,
                             Long mergeParentId) {
+        commitAsync(playerId, playerName, branchId, repoId, message, bukkitWorld,
+                pos1, pos2, schemPath, parentOverride, mergeParentId, null);
+    }
+
+    /**
+     * Variant used by cherry-pick — same as the merge variant plus a non-null
+     * {@code cherryPickSourceId} pointing at the commit that was picked. The pointer
+     * is informational; ancestor walks for future merges deliberately ignore it.
+     */
+    public void commitAsync(UUID playerId,
+                            String playerName,
+                            long branchId,
+                            long repoId,
+                            String message,
+                            World bukkitWorld,
+                            BlockVector3 pos1,
+                            BlockVector3 pos2,
+                            Path schemPath,
+                            Long parentOverride,
+                            Long mergeParentId,
+                            Long cherryPickSourceId) {
         // adapt() must run on the main thread.
         com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(bukkitWorld);
 
@@ -110,7 +131,8 @@ public final class CommitService {
                 }
                 long createdAt = System.currentTimeMillis();
                 long id = commitDao.insert(new CommitRecord(
-                        null, parentCommitId, mergeParentId, branchId, playerId, playerName, message,
+                        null, parentCommitId, mergeParentId, cherryPickSourceId,
+                        branchId, playerId, playerName, message,
                         schemPath.toString(), createdAt,
                         worldUuid, worldName, minX, minY, minZ, maxX, maxY, maxZ));
 

@@ -10,9 +10,7 @@ import com.gitcraft.database.CommitRecord;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.HeadRecord;
 import com.gitcraft.diff.DiffResult;
-import com.gitcraft.diff.GhostBlock;
 import com.gitcraft.diff.GhostBlockManager;
-import com.gitcraft.diff.GhostType;
 import com.gitcraft.selection.Selection;
 import com.gitcraft.selection.SelectionManager;
 import com.gitcraft.util.ClipboardLoader;
@@ -24,11 +22,9 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.block.BlockState;
-import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.block.BlockTypes;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
-import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 
 import java.io.IOException;
@@ -57,7 +53,7 @@ import java.util.logging.Level;
 public final class MergeService {
 
     /** Hard cap on how many commits we'll walk when looking for a common ancestor. */
-    private static final int ANCESTOR_WALK_CAP = 10_000;
+    static final int ANCESTOR_WALK_CAP = 10_000;
 
     public enum Side { OURS, THEIRS }
 
@@ -67,7 +63,7 @@ public final class MergeService {
     private final BranchDao branchDao;
     private final HeadDao headDao;
     private final GhostBlockManager ghostBlockManager;
-    private final MergeManager mergeManager;
+    private final OpManager opManager;
     private final CommitService commitService;
     private final GitCraftConfig config;
 
@@ -77,7 +73,7 @@ public final class MergeService {
                         BranchDao branchDao,
                         HeadDao headDao,
                         GhostBlockManager ghostBlockManager,
-                        MergeManager mergeManager,
+                        OpManager opManager,
                         CommitService commitService,
                         GitCraftConfig config) {
         this.plugin = plugin;
@@ -86,7 +82,7 @@ public final class MergeService {
         this.branchDao = branchDao;
         this.headDao = headDao;
         this.ghostBlockManager = ghostBlockManager;
-        this.mergeManager = mergeManager;
+        this.opManager = opManager;
         this.commitService = commitService;
         this.config = config;
     }
@@ -95,7 +91,7 @@ public final class MergeService {
 
     public void startMerge(Player player, String sourceBranchName) {
         UUID playerId = player.getUniqueId();
-        if (mergeManager.has(playerId)) {
+        if (opManager.has(playerId)) {
             player.sendMessage(Messages.MERGE_ALREADY_IN_PROGRESS);
             return;
         }
@@ -122,19 +118,19 @@ public final class MergeService {
         try {
             Optional<BranchRecord> sourceOpt = branchDao.findByRepoAndName(repoId, sourceBranchName);
             if (sourceOpt.isEmpty()) {
-                sendOnMain(playerId, String.format(Messages.MERGE_BRANCH_NOT_FOUND, sourceBranchName));
+                MergeOps.sendOnMain(plugin, playerId, String.format(Messages.MERGE_BRANCH_NOT_FOUND, sourceBranchName));
                 return;
             }
             BranchRecord sourceBranch = sourceOpt.get();
 
             Long targetHeadId = resolveHeadCommitId(playerId, repoId, targetBranchId);
             if (targetHeadId == null) {
-                sendOnMain(playerId, Messages.MERGE_TARGET_EMPTY);
+                MergeOps.sendOnMain(plugin, playerId, Messages.MERGE_TARGET_EMPTY);
                 return;
             }
             Long sourceHeadId = commitDao.findLatestIdByBranch(sourceBranch.id()).orElse(null);
             if (sourceHeadId == null) {
-                sendOnMain(playerId, Messages.MERGE_SOURCE_EMPTY);
+                MergeOps.sendOnMain(plugin, playerId, Messages.MERGE_SOURCE_EMPTY);
                 return;
             }
 
@@ -152,7 +148,7 @@ public final class MergeService {
 
             Long baseId = findCommonAncestor(targetHeadId, sourceHeadId, links);
             if (baseId == null) {
-                sendOnMain(playerId, Messages.MERGE_UNRELATED);
+                MergeOps.sendOnMain(plugin, playerId, Messages.MERGE_UNRELATED);
                 return;
             }
 
@@ -160,13 +156,13 @@ public final class MergeService {
             CommitRecord target = commitDao.findById(targetHeadId).orElse(null);
             CommitRecord source = commitDao.findById(sourceHeadId).orElse(null);
             if (base == null || target == null || source == null) {
-                sendOnMain(playerId, Messages.MERGE_DB_ERROR);
+                MergeOps.sendOnMain(plugin, playerId, Messages.MERGE_DB_ERROR);
                 return;
             }
 
             if (!base.worldUuid().equals(target.worldUuid())
                     || !base.worldUuid().equals(source.worldUuid())) {
-                sendOnMain(playerId, String.format(Messages.MERGE_CROSS_WORLD,
+                MergeOps.sendOnMain(plugin, playerId, String.format(Messages.MERGE_CROSS_WORLD,
                         target.worldName(), source.worldName()));
                 return;
             }
@@ -175,19 +171,19 @@ public final class MergeService {
             Clipboard oursClip   = ClipboardLoader.load(target.schemPath());
             Clipboard theirsClip = ClipboardLoader.load(source.schemPath());
 
-            int minX = min3(base.minX(), target.minX(), source.minX());
-            int minY = min3(base.minY(), target.minY(), source.minY());
-            int minZ = min3(base.minZ(), target.minZ(), source.minZ());
-            int maxX = max3(base.maxX(), target.maxX(), source.maxX());
-            int maxY = max3(base.maxY(), target.maxY(), source.maxY());
-            int maxZ = max3(base.maxZ(), target.maxZ(), source.maxZ());
+            int minX = MergeOps.min3(base.minX(), target.minX(), source.minX());
+            int minY = MergeOps.min3(base.minY(), target.minY(), source.minY());
+            int minZ = MergeOps.min3(base.minZ(), target.minZ(), source.minZ());
+            int maxX = MergeOps.max3(base.maxX(), target.maxX(), source.maxX());
+            int maxY = MergeOps.max3(base.maxY(), target.maxY(), source.maxY());
+            int maxZ = MergeOps.max3(base.maxZ(), target.maxZ(), source.maxZ());
 
             ThreeWayDiff.Result result = ThreeWayDiff.compute(
                     baseClip, oursClip, theirsClip,
                     minX, minY, minZ, maxX, maxY, maxZ);
 
             if (result.isNoOp()) {
-                sendOnMain(playerId, Messages.MERGE_ALREADY_UP_TO_DATE);
+                MergeOps.sendOnMain(plugin, playerId, Messages.MERGE_ALREADY_UP_TO_DATE);
                 return;
             }
 
@@ -211,10 +207,10 @@ public final class MergeService {
 
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Merge DB error", e);
-            sendOnMain(playerId, String.format(Messages.MERGE_DB_FAILED, safe(e.getMessage())));
+            MergeOps.sendOnMain(plugin, playerId, String.format(Messages.MERGE_DB_FAILED, MergeOps.safe(e.getMessage())));
         } catch (IOException e) {
             plugin.getLogger().log(Level.WARNING, "Merge schematic load failed", e);
-            sendOnMain(playerId, String.format(Messages.MERGE_IO_FAILED, safe(e.getMessage())));
+            MergeOps.sendOnMain(plugin, playerId, String.format(Messages.MERGE_IO_FAILED, MergeOps.safe(e.getMessage())));
         }
     }
 
@@ -238,10 +234,10 @@ public final class MergeService {
         // Snapshot pre-merge world for autoApplied + conflict positions (rollback on abort).
         Map<BlockVector3, BlockState> preMerge = new HashMap<>();
         for (BlockVector3 pos : result.autoApplied().keySet()) {
-            preMerge.put(pos, captureWorldState(world, pos));
+            preMerge.put(pos, MergeOps.captureWorldState(world, pos));
         }
         for (BlockVector3 pos : result.conflicts().keySet()) {
-            preMerge.put(pos, captureWorldState(world, pos));
+            preMerge.put(pos, MergeOps.captureWorldState(world, pos));
         }
 
         // Apply auto-changes via a single EditSession.
@@ -267,7 +263,7 @@ public final class MergeService {
                 result.autoApplied(),
                 result.conflicts(),
                 preMerge);
-        mergeManager.put(session);
+        opManager.put(session);
 
         if (staleBase) {
             player.sendMessage(Messages.MERGE_STALE_BASE_WARN);
@@ -282,7 +278,7 @@ public final class MergeService {
         }
 
         // Spawn purple ghosts for conflicts.
-        DiffResult ghostResult = buildConflictGhosts(result.conflicts(), world);
+        DiffResult ghostResult = MergeOps.buildConflictGhosts(result.conflicts());
         ghostBlockManager.show(player, ghostResult, world);
 
         player.sendMessage(String.format(Messages.MERGE_RESOLVING,
@@ -294,7 +290,7 @@ public final class MergeService {
 
     public void accept(Player player, Side side) {
         UUID playerId = player.getUniqueId();
-        MergeSession session = mergeManager.get(playerId).orElse(null);
+        MergeSession session = opManager.getMerge(playerId).orElse(null);
         if (session == null) {
             player.sendMessage(Messages.MERGE_NONE);
             return;
@@ -331,7 +327,7 @@ public final class MergeService {
 
     public void abort(Player player) {
         UUID playerId = player.getUniqueId();
-        MergeSession session = mergeManager.get(playerId).orElse(null);
+        MergeSession session = opManager.getMerge(playerId).orElse(null);
         if (session == null) {
             player.sendMessage(Messages.MERGE_NONE);
             return;
@@ -339,7 +335,7 @@ public final class MergeService {
         World world = Bukkit.getWorld(session.worldUuid());
         if (world == null) {
             // Drop session anyway; we can't restore.
-            mergeManager.remove(playerId);
+            opManager.remove(playerId);
             ghostBlockManager.clear(player);
             player.sendMessage(String.format(Messages.MERGE_WORLD_GONE, session.worldName()));
             return;
@@ -359,7 +355,7 @@ public final class MergeService {
         }
 
         ghostBlockManager.clear(player);
-        mergeManager.remove(playerId);
+        opManager.remove(playerId);
         player.sendMessage(Messages.MERGE_ABORTED);
     }
 
@@ -367,11 +363,14 @@ public final class MergeService {
 
     public void continueMerge(Player player, String overrideMessage) {
         UUID playerId = player.getUniqueId();
-        MergeSession session = mergeManager.get(playerId).orElse(null);
+        MergeSession session = opManager.getMerge(playerId).orElse(null);
         if (session == null) {
             player.sendMessage(Messages.MERGE_NONE);
             return;
         }
+        // TODO: manual block placement during conflict resolution does not satisfy
+        // allConflictsResolved() — only `accept ours|theirs` populates resolutions.
+        // Same gap exists for cherry-pick; tracked for a later pass.
         if (!session.allConflictsResolved()) {
             int unresolved = session.conflicts().size() - session.resolutions().size();
             player.sendMessage(String.format(Messages.MERGE_UNRESOLVED, unresolved));
@@ -385,10 +384,10 @@ public final class MergeService {
 
         // Compute commit region from the union bbox of pre-merge snapshot positions
         // (== union of base/target/source). Fall back to target bbox if empty (shouldn't happen).
-        BBox bbox = unionBBox(session);
+        MergeOps.BBox bbox = MergeOps.unionBBox(session.preMergeWorld().keySet());
 
-        BlockVector3 pos1 = BlockVector3.at(bbox.minX, bbox.minY, bbox.minZ);
-        BlockVector3 pos2 = BlockVector3.at(bbox.maxX, bbox.maxY, bbox.maxZ);
+        BlockVector3 pos1 = BlockVector3.at(bbox.minX(), bbox.minY(), bbox.minZ());
+        BlockVector3 pos2 = BlockVector3.at(bbox.maxX(), bbox.maxY(), bbox.maxZ());
 
         String message = overrideMessage != null && !overrideMessage.isBlank()
                 ? overrideMessage
@@ -410,14 +409,14 @@ public final class MergeService {
         // and another merge cannot start meaningfully without first checking the commit landed.
         // CommitService logs DB failures; the player will get a separate failure message and can retry.
         ghostBlockManager.clear(player);
-        mergeManager.remove(playerId);
+        opManager.remove(playerId);
         player.sendMessage(Messages.MERGE_FINALIZING);
     }
 
     // ===== STATUS =====
 
     public void status(Player player) {
-        MergeSession s = mergeManager.get(player.getUniqueId()).orElse(null);
+        MergeSession s = opManager.getMerge(player.getUniqueId()).orElse(null);
         if (s == null) {
             player.sendMessage(Messages.MERGE_NONE);
             return;
@@ -440,7 +439,7 @@ public final class MergeService {
     }
 
     /** BFS both DAGs (parent + merge_parent), return first commit id reachable from both. */
-    private Long findCommonAncestor(long target, long source, Map<Long, CommitDao.ParentLink> links) {
+    static Long findCommonAncestor(long target, long source, Map<Long, CommitDao.ParentLink> links) {
         Set<Long> targetAncestors = collectAncestors(target, links);
         if (targetAncestors.contains(source)) return source;
 
@@ -465,7 +464,7 @@ public final class MergeService {
         return null;
     }
 
-    private Set<Long> collectAncestors(long start, Map<Long, CommitDao.ParentLink> links) {
+    static Set<Long> collectAncestors(long start, Map<Long, CommitDao.ParentLink> links) {
         Set<Long> out = new LinkedHashSet<>();
         Deque<Long> queue = new ArrayDeque<>();
         queue.add(start);
@@ -484,59 +483,4 @@ public final class MergeService {
         }
         return out;
     }
-
-    private DiffResult buildConflictGhosts(Map<BlockVector3, Conflict> conflicts, World world) {
-        List<GhostBlock> ghosts = new ArrayList<>(conflicts.size());
-        for (Conflict c : conflicts.values()) {
-            BlockState display = c.theirs();
-            if (display == null || isAir(display)) display = c.ours();
-            if (display == null || isAir(display)) display = BlockTypes.STONE.getDefaultState();
-            BlockData data = BukkitAdapter.adapt(display);
-            ghosts.add(new GhostBlock(c.pos(), GhostType.CONFLICT, null, data));
-        }
-        return new DiffResult(ghosts);
-    }
-
-    private static boolean isAir(BlockState state) {
-        BlockType type = state.getBlockType();
-        return type == BlockTypes.AIR || type == BlockTypes.CAVE_AIR || type == BlockTypes.VOID_AIR;
-    }
-
-    private static BlockState captureWorldState(World world, BlockVector3 pos) {
-        BlockData data = world.getBlockAt(pos.x(), pos.y(), pos.z()).getBlockData();
-        return BukkitAdapter.adapt(data);
-    }
-
-    private record BBox(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {}
-
-    private BBox unionBBox(MergeSession s) {
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-        for (BlockVector3 p : s.preMergeWorld().keySet()) {
-            if (p.x() < minX) minX = p.x();
-            if (p.y() < minY) minY = p.y();
-            if (p.z() < minZ) minZ = p.z();
-            if (p.x() > maxX) maxX = p.x();
-            if (p.y() > maxY) maxY = p.y();
-            if (p.z() > maxZ) maxZ = p.z();
-        }
-        if (minX == Integer.MAX_VALUE) {
-            // No-op merge shouldn't reach continue, but be defensive.
-            minX = minY = minZ = 0;
-            maxX = maxY = maxZ = 0;
-        }
-        return new BBox(minX, minY, minZ, maxX, maxY, maxZ);
-    }
-
-    private static int min3(int a, int b, int c) { return Math.min(a, Math.min(b, c)); }
-    private static int max3(int a, int b, int c) { return Math.max(a, Math.max(b, c)); }
-
-    private void sendOnMain(UUID playerId, String message) {
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            Player p = Bukkit.getPlayer(playerId);
-            if (p != null && p.isOnline()) p.sendMessage(message);
-        });
-    }
-
-    private static String safe(String s) { return s == null ? "(no detail)" : s; }
 }

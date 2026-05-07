@@ -14,8 +14,9 @@ import com.gitcraft.diff.DiffService;
 import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.export.SchematicExporter;
 import com.gitcraft.listeners.WandListener;
-import com.gitcraft.merge.MergeManager;
+import com.gitcraft.merge.CherryPickService;
 import com.gitcraft.merge.MergeService;
+import com.gitcraft.merge.OpManager;
 import com.gitcraft.selection.SelectionManager;
 import com.gitcraft.util.Messages;
 import org.bukkit.Bukkit;
@@ -55,7 +56,7 @@ public final class GitCraft extends JavaPlugin {
         try {
             database.open();
             new SchemaMigrator().migrate(database);
-            getLogger().info("Schema migrated to v8.");
+            getLogger().info("Schema migrated to v9.");
         } catch (SQLException | IOException e) {
             getLogger().log(Level.SEVERE, "Failed to initialize SQLite database; disabling plugin.", e);
             Bukkit.getPluginManager().disablePlugin(this);
@@ -72,20 +73,22 @@ public final class GitCraft extends JavaPlugin {
         this.ghostBlockManager = new GhostBlockManager(this);
         CommitService commitService = new CommitService(this, exporter, commitDao, branchDao, headDao,
                 ghostBlockManager);
-        MergeManager mergeManager = new MergeManager();
+        OpManager opManager = new OpManager();
         MergeService mergeService = new MergeService(this, selectionManager, commitDao, branchDao,
-                headDao, ghostBlockManager, mergeManager, commitService, config);
+                headDao, ghostBlockManager, opManager, commitService, config);
+        CherryPickService cherryPickService = new CherryPickService(this, selectionManager, commitDao,
+                branchDao, headDao, ghostBlockManager, opManager, commitService, config);
 
         getServer().getPluginManager().registerEvents(
                 new WandListener(this, selectionManager), this);
         getServer().getPluginManager().registerEvents(ghostBlockManager, this);
-        getServer().getPluginManager().registerEvents(mergeManager, this);
+        getServer().getPluginManager().registerEvents(opManager, this);
 
         PluginCommand cmd = getCommand("gitcraft");
         if (cmd != null) {
             GitCraftCommand executor = new GitCraftCommand(
                     this, selectionManager, commitService, commitDao, repoDao, branchDao, headDao,
-                    stashDao, diffService, ghostBlockManager, mergeService);
+                    stashDao, diffService, ghostBlockManager, mergeService, cherryPickService);
             cmd.setExecutor(executor);
             cmd.setTabCompleter(executor);
         } else {

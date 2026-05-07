@@ -6,7 +6,7 @@ public final class Messages {
 
     public static final String PLAYER_ONLY = "This command can only be run by a player.";
     public static final String NO_PERMISSION = "You don't have permission to use GitCraft.";
-    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout, diff, merge, repos, stash.";
+    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout, diff, merge, cherry-pick, repos, stash.";
 
     public static final String INIT_USAGE = "Usage: /gitcraft init <repo-name>";
     public static final String INIT_REPO_EXISTS = "Repo '%s' already exists. Use /gitcraft open %s to reopen it.";
@@ -144,6 +144,34 @@ public final class Messages {
     public static final String MERGE_DB_FAILED          = "Merge DB lookup failed: %s";
     public static final String MERGE_IO_FAILED          = "Failed to load merge schematic: %s";
     public static final String MERGE_WE_ERROR           = "Merge failed: WorldEdit error. Check server logs.";
+
+    public static final String CHERRYPICK_USAGE              = "Usage: /gitcraft cherry-pick <commit-id> | accept ours|theirs | continue [msg] | abort | status";
+    public static final String CHERRYPICK_ACCEPT_USAGE       = "Usage: /gitcraft cherry-pick accept ours|theirs";
+    public static final String CHERRYPICK_INVALID_ID         = "Invalid commit id. Must be a positive number.";
+    public static final String CHERRYPICK_NO_REPO            = "No active repo/branch. Use /gitcraft open <name> first.";
+    public static final String CHERRYPICK_ALREADY_IN_PROGRESS = "An operation (merge or cherry-pick) is already in progress. Use continue or abort first.";
+    public static final String CHERRYPICK_NONE               = "No cherry-pick in progress.";
+    public static final String CHERRYPICK_COMMIT_NOT_FOUND   = "Commit %d does not exist.";
+    public static final String CHERRYPICK_COMMIT_NOT_IN_REPO = "Commit %d does not belong to this repo.";
+    public static final String CHERRYPICK_HEAD_EMPTY         = "Your branch has no commits — nothing to cherry-pick onto.";
+    public static final String CHERRYPICK_SELF               = "Cannot cherry-pick a commit onto itself.";
+    public static final String CHERRYPICK_ALREADY_APPLIED    = "Commit %d is already in this branch's history.";
+    public static final String CHERRYPICK_CROSS_WORLD        = "Branches span different worlds (%s vs %s). Cross-world cherry-pick is not supported.";
+    public static final String CHERRYPICK_STARTED            = "Computing cherry-pick...";
+    public static final String CHERRYPICK_NO_OP              = "Nothing to apply — cherry-pick is a no-op against your current branch.";
+    public static final String CHERRYPICK_RESOLVING          = "Cherry-picking commit %d onto '%s': %d auto-applied, %d conflicts. Use /gitcraft cherry-pick accept ours|theirs, then /gitcraft cherry-pick continue. Or /gitcraft cherry-pick abort.";
+    public static final String CHERRYPICK_FAST_APPLY         = "Cherry-pick of commit %d onto '%s' (%d blocks). Finalizing...";
+    public static final String CHERRYPICK_STALE_BASE_WARN    = "HEAD has moved since cherry-pick started. Proceeding with original snapshot.";
+    public static final String CHERRYPICK_ACCEPTED           = "Resolved %d conflicts to '%s'. Run /gitcraft cherry-pick continue to commit, or place blocks manually first.";
+    public static final String CHERRYPICK_UNRESOLVED         = "%d conflicts unresolved. Use /gitcraft cherry-pick accept ours|theirs or place blocks then continue.";
+    public static final String CHERRYPICK_FINALIZING         = "Recording cherry-pick commit...";
+    public static final String CHERRYPICK_ABORTED            = "Cherry-pick aborted. World restored to pre-pick state.";
+    public static final String CHERRYPICK_STATUS             = "Cherry-picking commit %d -> '%s': %d auto-applied, %d conflicts (%d unresolved).";
+    public static final String CHERRYPICK_WORLD_GONE         = "World '%s' is no longer loaded.";
+    public static final String CHERRYPICK_DB_ERROR           = "Cherry-pick failed: database error. Check server logs.";
+    public static final String CHERRYPICK_DB_FAILED          = "Cherry-pick DB lookup failed: %s";
+    public static final String CHERRYPICK_IO_FAILED          = "Failed to load cherry-pick schematic: %s";
+    public static final String CHERRYPICK_WE_ERROR           = "Cherry-pick failed: WorldEdit error. Check server logs.";
 
     public static final String REPOS_HEADER   = "Your repos (%d):";
     public static final String REPOS_ROW      = "%s  branches: %d  created: %s";

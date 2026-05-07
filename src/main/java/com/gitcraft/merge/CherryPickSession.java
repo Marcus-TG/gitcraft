@@ -8,54 +8,54 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * In-memory state for one player's in-progress merge. Lives in MergeManager.
- * Not persisted — server restart drops it (world keeps mid-merge state, like Git).
+ * In-memory state for one player's in-progress cherry-pick. Mirrors {@link MergeSession}
+ * but the "source" is a single picked commit rather than a branch tip.
  */
-public final class MergeSession implements Op {
+public final class CherryPickSession implements Op {
 
     private final UUID playerId;
     private final long repoId;
 
     private final long targetBranchId;
     private final String targetBranchName;
-    private final long sourceBranchId;
-    private final String sourceBranchName;
 
-    private final long targetHeadCommitId;
-    private final long sourceHeadCommitId;
+    /** The commit that was picked. */
+    private final long sourceCommitId;
+    /** Parent of the picked commit, or null if the picked commit is a root. */
     private final Long baseCommitId;
+    /** Active branch HEAD at start of cherry-pick — used as the new commit's parent. */
+    private final long targetHeadCommitId;
+
+    /** Picked commit's message — used to compose the default cherry-pick commit message. */
+    private final String sourceMessage;
 
     private final UUID worldUuid;
     private final String worldName;
 
     private final Map<BlockVector3, BlockState> autoApplied;
     private final Map<BlockVector3, Conflict>   conflicts;
-    /** Pre-merge world snapshot for autoApplied + conflict positions; used by abort to roll back. */
     private final Map<BlockVector3, BlockState> preMergeWorld;
-    /** Resolutions chosen via accept ours|theirs. Conflict pos -> chosen state (may be air). */
     private final Map<BlockVector3, BlockState> resolutions;
 
     private final long startedAt;
     private volatile long lastTouchedAt;
 
-    public MergeSession(UUID playerId, long repoId,
-                        long targetBranchId, String targetBranchName,
-                        long sourceBranchId, String sourceBranchName,
-                        long targetHeadCommitId, long sourceHeadCommitId,
-                        Long baseCommitId,
-                        UUID worldUuid, String worldName,
-                        Map<BlockVector3, BlockState> autoApplied,
-                        Map<BlockVector3, Conflict>   conflicts,
-                        Map<BlockVector3, BlockState> preMergeWorld) {
+    public CherryPickSession(UUID playerId, long repoId,
+                             long targetBranchId, String targetBranchName,
+                             long sourceCommitId, Long baseCommitId,
+                             long targetHeadCommitId, String sourceMessage,
+                             UUID worldUuid, String worldName,
+                             Map<BlockVector3, BlockState> autoApplied,
+                             Map<BlockVector3, Conflict>   conflicts,
+                             Map<BlockVector3, BlockState> preMergeWorld) {
         this.playerId = playerId;
         this.repoId = repoId;
         this.targetBranchId = targetBranchId;
         this.targetBranchName = targetBranchName;
-        this.sourceBranchId = sourceBranchId;
-        this.sourceBranchName = sourceBranchName;
-        this.targetHeadCommitId = targetHeadCommitId;
-        this.sourceHeadCommitId = sourceHeadCommitId;
+        this.sourceCommitId = sourceCommitId;
         this.baseCommitId = baseCommitId;
+        this.targetHeadCommitId = targetHeadCommitId;
+        this.sourceMessage = sourceMessage;
         this.worldUuid = worldUuid;
         this.worldName = worldName;
         this.autoApplied = autoApplied;
@@ -69,15 +69,16 @@ public final class MergeSession implements Op {
     public void touch() { this.lastTouchedAt = System.currentTimeMillis(); }
 
     @Override public UUID playerId() { return playerId; }
-    @Override public OpKind kind() { return OpKind.MERGE; }
+    @Override public OpKind kind() { return OpKind.CHERRY_PICK; }
+    @Override public long lastTouchedAt() { return lastTouchedAt; }
+
     public long repoId() { return repoId; }
     public long targetBranchId() { return targetBranchId; }
     public String targetBranchName() { return targetBranchName; }
-    public long sourceBranchId() { return sourceBranchId; }
-    public String sourceBranchName() { return sourceBranchName; }
-    public long targetHeadCommitId() { return targetHeadCommitId; }
-    public long sourceHeadCommitId() { return sourceHeadCommitId; }
+    public long sourceCommitId() { return sourceCommitId; }
     public Long baseCommitId() { return baseCommitId; }
+    public long targetHeadCommitId() { return targetHeadCommitId; }
+    public String sourceMessage() { return sourceMessage; }
     public UUID worldUuid() { return worldUuid; }
     public String worldName() { return worldName; }
     public Map<BlockVector3, BlockState> autoApplied() { return autoApplied; }
@@ -85,7 +86,6 @@ public final class MergeSession implements Op {
     public Map<BlockVector3, BlockState> preMergeWorld() { return preMergeWorld; }
     public Map<BlockVector3, BlockState> resolutions() { return resolutions; }
     public long startedAt() { return startedAt; }
-    @Override public long lastTouchedAt() { return lastTouchedAt; }
 
     public boolean allConflictsResolved() {
         return resolutions.keySet().containsAll(conflicts.keySet());

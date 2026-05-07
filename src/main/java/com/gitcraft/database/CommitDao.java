@@ -20,11 +20,12 @@ public final class CommitDao {
             "INSERT INTO commits(" +
                     "branch_id, player_uuid, player_name, message, schem_path, created_at, " +
                     "world_uuid, world_name, min_x, min_y, min_z, max_x, max_y, max_z, " +
-                    "parent_commit_id, merge_parent_commit_id" +
-                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    "parent_commit_id, merge_parent_commit_id, cherry_pick_source_id" +
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private static final String SELECT_COLUMNS =
-            "id, parent_commit_id, merge_parent_commit_id, branch_id, player_uuid, player_name, " +
+            "id, parent_commit_id, merge_parent_commit_id, cherry_pick_source_id, " +
+                    "branch_id, player_uuid, player_name, " +
                     "message, schem_path, created_at, " +
                     "world_uuid, world_name, min_x, min_y, min_z, max_x, max_y, max_z";
 
@@ -75,6 +76,7 @@ public final class CommitDao {
             ps.setInt(14, r.maxZ());
             ps.setObject(15, r.parentCommitId());
             ps.setObject(16, r.mergeParentCommitId());
+            ps.setObject(17, r.cherryPickSourceId());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -193,10 +195,13 @@ public final class CommitDao {
         Long parentCommitId = rs.wasNull() ? null : rawParent;
         long rawMerge = rs.getLong("merge_parent_commit_id");
         Long mergeParentCommitId = rs.wasNull() ? null : rawMerge;
+        long rawCherry = rs.getLong("cherry_pick_source_id");
+        Long cherryPickSourceId = rs.wasNull() ? null : rawCherry;
         return new CommitRecord(
                 rs.getLong("id"),
                 parentCommitId,
                 mergeParentCommitId,
+                cherryPickSourceId,
                 rs.getLong("branch_id"),
                 UUID.fromString(rs.getString("player_uuid")),
                 rs.getString("player_name"),

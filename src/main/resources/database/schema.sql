@@ -5,6 +5,7 @@
 -- v6: heads.commit_id added to track which specific commit HEAD points at within a branch.
 -- v7: commits.merge_parent_commit_id added — second parent for merge commits (NULL otherwise).
 -- v8: stashes table added — per-(player, repo) LIFO stack of saved selection state.
+-- v9: commits.cherry_pick_source_id added — informational pointer to the cherry-picked source commit.
 
 CREATE TABLE IF NOT EXISTS repos (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +49,8 @@ CREATE TABLE IF NOT EXISTS commits (
     max_y            INTEGER NOT NULL,
     max_z            INTEGER NOT NULL,
     parent_commit_id INTEGER,
-    merge_parent_commit_id INTEGER
+    merge_parent_commit_id INTEGER,
+    cherry_pick_source_id INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_commits_branch ON commits(branch_id);

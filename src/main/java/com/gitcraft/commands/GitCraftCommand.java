@@ -3,6 +3,7 @@ package com.gitcraft.commands;
 import com.gitcraft.GitCraft;
 import com.gitcraft.commands.sub.BranchSubcommand;
 import com.gitcraft.commands.sub.CheckoutSubcommand;
+import com.gitcraft.commands.sub.CherryPickSubcommand;
 import com.gitcraft.commands.sub.ClearSubcommand;
 import com.gitcraft.commands.sub.CommitSubcommand;
 import com.gitcraft.commands.sub.DiffSubcommand;
@@ -24,6 +25,7 @@ import com.gitcraft.database.RepoDao;
 import com.gitcraft.database.StashDao;
 import com.gitcraft.diff.DiffService;
 import com.gitcraft.diff.GhostBlockManager;
+import com.gitcraft.merge.CherryPickService;
 import com.gitcraft.merge.MergeService;
 import com.gitcraft.selection.SelectionManager;
 import com.gitcraft.util.Messages;
@@ -50,7 +52,7 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
                            CommitDao commitDao, RepoDao repoDao, BranchDao branchDao, HeadDao headDao,
                            StashDao stashDao,
                            DiffService diffService, GhostBlockManager ghostBlockManager,
-                           MergeService mergeService) {
+                           MergeService mergeService, CherryPickService cherryPickService) {
         subs.put("init",     new InitSubcommand(plugin, manager, repoDao, branchDao, headDao));
         subs.put("open",     new OpenSubcommand(plugin, manager, commitDao, repoDao, branchDao, headDao,
                 ghostBlockManager));
@@ -66,6 +68,7 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
         subs.put("diff",     new DiffSubcommand(plugin, manager, commitDao, branchDao, repoDao, headDao,
                 diffService, ghostBlockManager));
         subs.put("merge",    new MergeSubcommand(plugin, manager, branchDao, mergeService));
+        subs.put("cherry-pick", new CherryPickSubcommand(cherryPickService));
         subs.put("repos",    new ReposSubcommand(plugin, repoDao, branchDao));
         subs.put("stash",    new StashSubcommand(plugin, manager, stashDao, branchDao, headDao));
     }

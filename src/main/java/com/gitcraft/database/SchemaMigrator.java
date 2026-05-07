@@ -27,11 +27,13 @@ import java.util.stream.Stream;
  * v7    → v8: adds {@code stashes} table — per-(player, repo) LIFO stack of saved selections.
  *             New table only; schema.sql's {@code CREATE TABLE IF NOT EXISTS} handles both
  *             fresh installs and upgrades, so no explicit ALTER block is needed here.
+ * v8    → v9: adds {@code commits.cherry_pick_source_id} — informational pointer to the
+ *             commit that was cherry-picked. Metadata only; not part of the parent DAG.
  */
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 8;
+    private static final int CURRENT_VERSION = 9;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held
@@ -93,6 +95,16 @@ public final class SchemaMigrator {
             // via schema.sql; suppress duplicate-column error.
             try (Statement st = conn.createStatement()) {
                 st.execute("ALTER TABLE commits ADD COLUMN merge_parent_commit_id INTEGER");
+            } catch (SQLException e) {
+                if (!e.getMessage().toLowerCase().contains("duplicate column name")) throw e;
+            }
+        }
+
+        if (existing < 9) {
+            // v8 → v9: add cherry_pick_source_id to commits. Fresh installs already have it
+            // via schema.sql; suppress duplicate-column error.
+            try (Statement st = conn.createStatement()) {
+                st.execute("ALTER TABLE commits ADD COLUMN cherry_pick_source_id INTEGER");
             } catch (SQLException e) {
                 if (!e.getMessage().toLowerCase().contains("duplicate column name")) throw e;
             }
