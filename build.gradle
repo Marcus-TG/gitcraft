@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'com.gradleup.shadow' version '8.3.5'
 }
 
 group = 'com.gitcraft'
@@ -32,6 +33,11 @@ dependencies {
     }
 
     implementation 'org.xerial:sqlite-jdbc:3.46.1.0'
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:6.9.0.202403050737-r'
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.http.apache:6.9.0.202403050737-r'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -48,9 +54,13 @@ processResources {
     }
 }
 
-jar {
-    from {
-        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
-    }
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+shadowJar {
+    archiveClassifier.set('')
+    mergeServiceFiles()
+}
+
+assemble.dependsOn shadowJar
+
+test {
+    useJUnitPlatform()
 }

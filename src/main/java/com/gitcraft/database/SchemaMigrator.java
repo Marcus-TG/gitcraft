@@ -29,11 +29,13 @@ import java.util.stream.Stream;
  *             fresh installs and upgrades, so no explicit ALTER block is needed here.
  * v8    → v9: adds {@code commits.cherry_pick_source_id} — informational pointer to the
  *             commit that was cherry-picked. Metadata only; not part of the parent DAG.
+ * v9    → v10: adds {@code remotes}, {@code github_tokens}, and {@code commit_git_shas} tables
+ *              for GitHub integration (Phase 4). New tables only; no ALTER needed.
  */
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 9;
+    private static final int CURRENT_VERSION = 10;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held
@@ -109,6 +111,10 @@ public final class SchemaMigrator {
                 if (!e.getMessage().toLowerCase().contains("duplicate column name")) throw e;
             }
         }
+
+        // v9 → v10: new tables (remotes, github_tokens, commit_git_shas + index).
+        // schema.sql CREATE TABLE IF NOT EXISTS handles both fresh installs and upgrades;
+        // no explicit ALTER blocks needed here.
 
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES (?, ?)")) {

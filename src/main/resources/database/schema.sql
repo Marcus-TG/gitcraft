@@ -1,4 +1,4 @@
--- GitCraft schema v8. Idempotent. Run on every plugin enable via SchemaMigrator.
+-- GitCraft schema v10. Idempotent. Run on every plugin enable via SchemaMigrator.
 -- All schema changes happen here; do not CREATE TABLE elsewhere.
 -- v4: repos/branches/heads added; commits.region_name replaced by branch_id (destructive migration).
 -- v5: branches.fork_commit_id added to preserve commit graph lineage across branch boundaries.
@@ -6,6 +6,7 @@
 -- v7: commits.merge_parent_commit_id added — second parent for merge commits (NULL otherwise).
 -- v8: stashes table added — per-(player, repo) LIFO stack of saved selection state.
 -- v9: commits.cherry_pick_source_id added — informational pointer to the cherry-picked source commit.
+-- v10: remotes, github_tokens, commit_git_shas added for GitHub integration (Phase 4).
 
 CREATE TABLE IF NOT EXISTS repos (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,6 +77,30 @@ CREATE TABLE IF NOT EXISTS stashes (
 
 CREATE INDEX IF NOT EXISTS idx_stashes_player_repo_created
     ON stashes(player_uuid, repo_id, created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS remotes (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_id  INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+    name     TEXT    NOT NULL DEFAULT 'origin',
+    url      TEXT    NOT NULL,
+    UNIQUE(repo_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS github_tokens (
+    player_uuid  TEXT    NOT NULL PRIMARY KEY,
+    access_token TEXT    NOT NULL,
+    scope        TEXT    NOT NULL,
+    created_at   INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS commit_git_shas (
+    commit_id INTEGER NOT NULL REFERENCES commits(id) ON DELETE CASCADE,
+    remote_id INTEGER NOT NULL REFERENCES remotes(id) ON DELETE CASCADE,
+    git_sha   TEXT    NOT NULL,
+    PRIMARY KEY (commit_id, remote_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commit_git_shas_sha ON commit_git_shas(git_sha);
 
 CREATE TABLE IF NOT EXISTS schema_version (
     version    INTEGER PRIMARY KEY,

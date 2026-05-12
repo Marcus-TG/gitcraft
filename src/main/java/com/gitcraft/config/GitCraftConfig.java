@@ -13,6 +13,8 @@ public final class GitCraftConfig {
     private Material wandMaterial;
     private Path schematicsDir;
     private Path databaseFile;
+    private String githubClientId;
+    private Path gitDir;
 
     public GitCraftConfig(GitCraft plugin) {
         this.plugin = plugin;
@@ -36,6 +38,15 @@ public final class GitCraftConfig {
         String dbPath = cfg.getString("database.file", "gitcraft.db");
         Path d = Paths.get(dbPath);
         this.databaseFile = d.isAbsolute() ? d : plugin.getDataFolder().toPath().resolve(d);
+
+        this.githubClientId = cfg.getString("github.client-id", "").strip();
+        if (this.githubClientId.isEmpty()) {
+            plugin.getLogger().warning("github.client-id is not set in config.yml. /gitcraft login will not work.");
+        }
+
+        String gitPath = cfg.getString("github.git-dir", "git");
+        Path g = Paths.get(gitPath);
+        this.gitDir = g.isAbsolute() ? g : plugin.getDataFolder().toPath().resolve(g);
     }
 
     public Material wandMaterial() {
@@ -48,5 +59,13 @@ public final class GitCraftConfig {
 
     public Path databaseFile() {
         return databaseFile;
+    }
+
+    public String githubClientId() {
+        return githubClientId;
+    }
+
+    public Path gitDir() {
+        return gitDir;
     }
 }

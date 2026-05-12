@@ -5,14 +5,23 @@ import com.gitcraft.commit.CommitService;
 import com.gitcraft.config.GitCraftConfig;
 import com.gitcraft.database.BranchDao;
 import com.gitcraft.database.CommitDao;
+import com.gitcraft.database.CommitGitShaDao;
 import com.gitcraft.database.Database;
+import com.gitcraft.database.GitHubTokenDao;
 import com.gitcraft.database.HeadDao;
+import com.gitcraft.database.RemoteDao;
 import com.gitcraft.database.RepoDao;
 import com.gitcraft.database.SchemaMigrator;
 import com.gitcraft.database.StashDao;
 import com.gitcraft.diff.DiffService;
 import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.export.SchematicExporter;
+import com.gitcraft.git.CommitMapper;
+import com.gitcraft.git.GitCloneService;
+import com.gitcraft.git.GitPullService;
+import com.gitcraft.git.GitPushService;
+import com.gitcraft.git.GitRepoManager;
+import com.gitcraft.github.GitHubAuthService;
 import com.gitcraft.listeners.WandListener;
 import com.gitcraft.merge.CherryPickService;
 import com.gitcraft.merge.MergeService;
@@ -56,7 +65,7 @@ public final class GitCraft extends JavaPlugin {
         try {
             database.open();
             new SchemaMigrator().migrate(database);
-            getLogger().info("Schema migrated to v9.");
+            getLogger().info("Schema migrated to v10.");
         } catch (SQLException | IOException e) {
             getLogger().log(Level.SEVERE, "Failed to initialize SQLite database; disabling plugin.", e);
             Bukkit.getPluginManager().disablePlugin(this);
@@ -69,6 +78,9 @@ public final class GitCraft extends JavaPlugin {
         BranchDao branchDao = new BranchDao(database);
         HeadDao headDao = new HeadDao(database);
         StashDao stashDao = new StashDao(database);
+        RemoteDao remoteDao = new RemoteDao(database);
+        GitHubTokenDao tokenDao = new GitHubTokenDao(database);
+        CommitGitShaDao shaDao = new CommitGitShaDao(database);
         DiffService diffService = new DiffService(getLogger());
         this.ghostBlockManager = new GhostBlockManager(this);
         CommitService commitService = new CommitService(this, exporter, commitDao, branchDao, headDao,
@@ -79,6 +91,13 @@ public final class GitCraft extends JavaPlugin {
         CherryPickService cherryPickService = new CherryPickService(this, selectionManager, commitDao,
                 branchDao, headDao, ghostBlockManager, opManager, commitService, config);
 
+        CommitMapper commitMapper = new CommitMapper();
+        GitRepoManager gitRepoManager = new GitRepoManager(config.gitDir());
+        GitHubAuthService authService = new GitHubAuthService();
+        GitPushService pushService = new GitPushService(commitMapper, getLogger());
+        GitPullService pullService = new GitPullService(commitMapper, getLogger());
+        GitCloneService cloneService = new GitCloneService(commitMapper, getLogger());
+
         getServer().getPluginManager().registerEvents(
                 new WandListener(this, selectionManager), this);
         getServer().getPluginManager().registerEvents(ghostBlockManager, this);
@@ -88,7 +107,10 @@ public final class GitCraft extends JavaPlugin {
         if (cmd != null) {
             GitCraftCommand executor = new GitCraftCommand(
                     this, selectionManager, commitService, commitDao, repoDao, branchDao, headDao,
-                    stashDao, diffService, ghostBlockManager, mergeService, cherryPickService);
+                    stashDao, diffService, ghostBlockManager, mergeService, cherryPickService,
+                    opManager, database, tokenDao, remoteDao, shaDao,
+                    pushService, pullService, cloneService,
+                    authService, gitRepoManager, config);
             cmd.setExecutor(executor);
             cmd.setTabCompleter(executor);
         } else {
@@ -99,8 +121,9 @@ public final class GitCraft extends JavaPlugin {
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             try {
                 Files.createDirectories(config.schematicsDir());
+                Files.createDirectories(config.gitDir());
             } catch (IOException e) {
-                getLogger().log(Level.WARNING, "Failed to create schematics directory", e);
+                getLogger().log(Level.WARNING, "Failed to create plugin directories", e);
             }
         });
 

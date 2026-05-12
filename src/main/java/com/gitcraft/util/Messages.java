@@ -6,7 +6,7 @@ public final class Messages {
 
     public static final String PLAYER_ONLY = "This command can only be run by a player.";
     public static final String NO_PERMISSION = "You don't have permission to use GitCraft.";
-    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout, diff, merge, cherry-pick, repos, stash.";
+    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout, diff, merge, cherry-pick, repos, stash, login, logout, remote, push, pull, clone.";
 
     public static final String INIT_USAGE = "Usage: /gitcraft init <repo-name>";
     public static final String INIT_REPO_EXISTS = "Repo '%s' already exists. Use /gitcraft open %s to reopen it.";
@@ -189,4 +189,63 @@ public final class Messages {
     public static final String STASH_LIST_HEADER      = "Stashes (%d):";
     public static final String STASH_LIST_ROW         = "#%d  %s  [%d,%d,%d]..[%d,%d,%d]  \"%s\"";
     public static final String STASH_DB_FAILED        = "Stash operation failed: %s";
+
+    // --- GitHub login ---
+    public static final String GITHUB_CLIENT_ID_NOT_CONFIGURED = "GitHub client-id is not configured. Ask your server admin to set github.client-id in config.yml.";
+    public static final String GITHUB_ALREADY_LOGGED_IN        = "You are already logged in to GitHub. Use /gitcraft logout to switch accounts.";
+    public static final String GITHUB_DEVICE_FLOW_PROMPT       = "Visit %s and enter code: %s";
+    public static final String GITHUB_LOGIN_SUCCESS            = "GitHub login successful! Scope: %s";
+    public static final String GITHUB_LOGIN_EXPIRED            = "Login timed out. Run /gitcraft login again.";
+    public static final String GITHUB_LOGIN_NETWORK_FAILED     = "GitHub login failed after repeated network errors. Try again later.";
+    public static final String GITHUB_LOGIN_DENIED             = "GitHub login was denied or cancelled.";
+    public static final String GITHUB_LOGGED_OUT               = "GitHub token removed.";
+    public static final String GITHUB_NOT_LOGGED_IN            = "Not logged in to GitHub. Run /gitcraft login first.";
+
+    // --- Remote management ---
+    public static final String REMOTE_USAGE         = "Usage: /gitcraft remote add <name> <url> | list | remove <name>";
+    public static final String REMOTE_NO_REPO       = "No active repo. Use /gitcraft open <name> first.";
+    public static final String REMOTE_INVALID_NAME  = "Remote name may only contain letters, numbers, hyphens, and underscores (max 32 chars).";
+    public static final String REMOTE_INVALID_URL   = "Remote URL must start with https://";
+    public static final String REMOTE_ADDED         = "Remote '%s' added: %s";
+    public static final String REMOTE_ALREADY_EXISTS = "A remote named '%s' already exists. Remove it first.";
+    public static final String REMOTE_NOT_FOUND     = "Remote '%s' not found.";
+    public static final String REMOTE_REMOVED       = "Remote '%s' removed.";
+    public static final String REMOTE_LIST_HEADER   = "Remotes for '%s':";
+    public static final String REMOTE_LIST_ENTRY    = "  %s  %s";
+    public static final String REMOTE_LIST_EMPTY    = "No remotes configured. Use /gitcraft remote add origin <url>.";
+    public static final String REMOTE_DB_FAILED     = "Remote operation failed: %s";
+
+    // --- Push ---
+    public static final String PUSH_USAGE                    = "Usage: /gitcraft push [remote-name]";
+    public static final String PUSH_NO_REPO                  = "No active repo/branch. Use /gitcraft open <name> first.";
+    public static final String PUSH_NO_TOKEN                 = GITHUB_NOT_LOGGED_IN;
+    public static final String PUSH_NO_REMOTE                = "Remote '%s' not found. Add it with /gitcraft remote add %s <url>.";
+    public static final String PUSH_NOTHING_TO_PUSH          = "Nothing to push — all commits are already on %s.";
+    public static final String PUSH_IN_PROGRESS              = "Pushing %d commit(s) to %s/%s...";
+    public static final String PUSH_SUCCESS                  = "Pushed %d commit(s) to %s/%s.";
+    public static final String PUSH_REJECTED_NOT_FAST_FORWARD = "Push rejected: remote has new commits. Run /gitcraft pull %s first.";
+    public static final String PUSH_REJECTED_NOT_FOUND       = "Push failed: repository not found on GitHub (404). Create the repo on GitHub first.";
+    public static final String PUSH_FAILED                   = "Push failed: %s";
+
+    // --- Pull ---
+    public static final String PULL_USAGE               = "Usage: /gitcraft pull [remote-name] [--here]";
+    public static final String PULL_NO_REPO             = "No active repo/branch. Use /gitcraft open <name> first.";
+    public static final String PULL_NO_TOKEN            = GITHUB_NOT_LOGGED_IN;
+    public static final String PULL_NO_REMOTE           = PUSH_NO_REMOTE;
+    public static final String PULL_NOTHING_TO_PULL     = "Already up to date.";
+    public static final String PULL_IN_PROGRESS         = "Fetching from %s...";
+    public static final String PULL_SUCCESS             = "Pulled %d commit(s) from %s/%s.";
+    public static final String PULL_BLOCKED_ACTIVE_SESSION = "Finish or abort your merge/cherry-pick before pulling.";
+    public static final String PULL_FAILED              = "Pull failed: %s";
+
+    // --- Clone ---
+    public static final String CLONE_USAGE          = "Usage: /gitcraft clone <https-url> <repo-name> [--here]";
+    public static final String CLONE_NO_TOKEN       = GITHUB_NOT_LOGGED_IN;
+    public static final String CLONE_INVALID_URL    = REMOTE_INVALID_URL;
+    public static final String CLONE_INVALID_NAME   = REMOTE_INVALID_NAME;
+    public static final String CLONE_REPO_NAME_TAKEN = "You already have a repo named '%s'. Choose a different name.";
+    public static final String CLONE_GIT_DIR_EXISTS  = "Local git directory already exists for '%s'. Delete plugins/GitCraft/git/<uuid>/%s/ manually and try again.";
+    public static final String CLONE_IN_PROGRESS    = "Cloning %s...";
+    public static final String CLONE_SUCCESS        = "Cloned into repo '%s' (%d commit(s) imported).";
+    public static final String CLONE_FAILED         = "Clone failed: %s";
 }

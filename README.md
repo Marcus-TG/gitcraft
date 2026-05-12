@@ -4,33 +4,33 @@ Git-like version control for Minecraft builds. A Paper plugin paired with a self
 
 ## What it is
 
-GitCraft treats player-selected regions as commits. Each commit captures the structure of a region as a `.schem` file along with metadata (author UUID, timestamp, message). Snapshots are stored locally first, then pushed to a backend that fronts a Gitea repository — giving builds the same `commit / push / pull / fork` workflow developers expect from source control.
+GitCraft treats player-selected regions as commits. Each commit captures the structure of a region as a `.schem` file along with metadata (author UUID, timestamp, message). Snapshots are stored locally and can be pushed to GitHub via JGit — giving builds the same `commit / branch / push / pull / clone` workflow developers expect from source control.
 
 GitCraft is **not** a block-change audit log. It does not track every block placed or broken. It captures whole-region snapshots on demand.
 
 ## Tech stack
 
-| Layer            | Choice                                  |
-|------------------|-----------------------------------------|
-| Plugin platform  | Paper API (Paper 1.21.4)                |
-| Language         | Java 21                                 |
-| Build tool       | Gradle                                  |
-| Schematic format | Sponge Schematic (`.schem`, v2/v3)      |
-| Schematic I/O    | WorldEdit API (library dependency)      |
-| Local storage    | SQLite (embedded)                       |
-| Backend (Phase 4+) | REST API in Docker                    |
-| Version backbone (Phase 5) | Gitea                         |
-| Deployment       | Docker + Portainer                      |
+| Layer              | Choice                                        |
+|--------------------|-----------------------------------------------|
+| Plugin platform    | Paper API (Paper 1.21.4)                      |
+| Language           | Java 21                                       |
+| Build tool         | Gradle + shadowJar (`com.gradleup.shadow`)    |
+| Schematic format   | Sponge Schematic (`.schem`, v2/v3)            |
+| Schematic I/O      | WorldEdit API (library dependency)            |
+| Local storage      | SQLite (embedded)                             |
+| Remote VCS         | GitHub (via JGit — pure Java, no native git)  |
+| Git auth           | GitHub OAuth device flow → HTTPS token        |
+| Deployment         | Docker + Portainer                            |
 
 ## Phase roadmap
 
-| Phase | What gets built |
-|-------|----------------|
-| 1 | Region selection + export selected region to `.schem` |
-| 2 | `/gitcraft commit` — attaches player UUID + timestamp, saves schem locally |
-| 3 | `/gitcraft log` / `/gitcraft reset` — commit history and rollback (soft + hard) |
-| 4 | REST API backend container + `/gitcraft push` / `/gitcraft pull` |
-| 5 | Gitea integration + web UI for browsing and forking builds |
+| Phase | Status | What gets built |
+|-------|--------|----------------|
+| 1 | ✅ Done | Region selection + export selected region to `.schem` |
+| 2 | ✅ Done | `/gitcraft commit` — attaches player UUID + timestamp, saves schem locally |
+| 3 | ✅ Done | Branches, `/gitcraft log`, `/gitcraft reset`, merge, cherry-pick, diff, stash |
+| 4 | **In progress** | GitHub integration — login (OAuth device flow), remote, push, pull, clone via JGit |
+| 5 | Planned | Web UI for browsing and forking builds |
 
 Current phase is tracked in `CLAUDE.md`. Do not implement features beyond the current phase without bumping it there first.
 
@@ -48,7 +48,11 @@ gitcraft/
     │   ├── database/              # SQLite connection, schema, DAOs
     │   ├── commands/              # /gitcraft subcommands
     │   ├── export/                # Schematic generation via WorldEdit
-    │   └── api/                   # REST client (Phase 4+)
+    │   ├── commit/                # CommitService pipeline
+    │   ├── diff/                  # DiffService, GhostBlockManager
+    │   ├── merge/                 # MergeService, CherryPickService, OpManager
+    │   ├── github/                # OAuth device flow
+    │   └── git/                   # JGit wrappers (push, pull, clone, commit mapping)
     └── resources/
         ├── plugin.yml
         └── config.yml
@@ -60,15 +64,15 @@ gitcraft/
 - **Gradle 8+** (or use the included wrapper, `./gradlew`)
 - **Paper 1.21.4** server for local testing
 - **WorldEdit** plugin installed on that test server (runtime dependency)
-- Git
+- A **GitHub OAuth App** with device flow enabled — get a `client_id` and put it in `config.yml → github.client-id`. The GitHub repo for a build must be created manually on GitHub before the first push (JGit cannot create repos).
 
 ## Build
 
 ```bash
-./gradlew build
+./gradlew shadowJar
 ```
 
-Compiled plugin JAR lands in `build/libs/`.
+The shadow JAR (with JGit and SQLite bundled) lands in `build/libs/`. The plain `jar` task is not used — always use `shadowJar` or `build` (which depends on it).
 
 ## Run locally
 
@@ -96,6 +100,16 @@ Then `./gradlew build` + `/reload confirm` (or full restart) picks up changes.
 ## Configuration
 
 All runtime paths live in `config.yml`. Do not hardcode paths in source. Schematic storage path will eventually point at a TrueNAS mount in production; locally it defaults to `plugins/GitCraft/schematics/`.
+
+For Phase 4, two additional keys are required:
+
+```yaml
+github:
+  client-id: ''    # GitHub OAuth App client_id — required for /gitcraft login
+  git-dir: git     # Local JGit working trees (default: plugins/GitCraft/git/)
+```
+
+If `client-id` is blank, the plugin logs a warning on startup and rejects `/gitcraft login` with a clear message.
 
 ## Threading rules (read before contributing)
 

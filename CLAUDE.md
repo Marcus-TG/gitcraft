@@ -47,6 +47,22 @@ You are building **GitCraft**, a Paper Minecraft plugin + self-hosted web backen
 - All schema definitions live in a single migration file. No inline `CREATE TABLE` scattered through the codebase.
 - Player identity is always stored as **UUID**, never username. Usernames change.
 
+### GitHub Integration (Phase 4)
+
+- **JGit only** — pure Java Git library. No native `git` binary, no shell exec.
+- Bundled in the JAR via **shadowJar** (`com.gradleup.shadow`). Relocation is intentionally omitted: Shadow 8.3.5 relocation hits an ASM/Java 21 incompatibility here, and JGit/Bouncy Castle/JSch are not present on Paper's server classpath, so relocation is not required in practice.
+- **HTTPS transport only.** No SSH. GitHub tokens are used as the password with username literal `"token"` (`UsernamePasswordCredentialsProvider`).
+- **The GitHub repo must already exist** before `/gitcraft push`. JGit cannot create repos. If the push returns a 404, tell the player to create the repo on GitHub first.
+- **SHA is recorded only after a successful push** — never speculatively. This ensures unpushed commits retry cleanly.
+- `commit_git_shas` is keyed `(commit_id, remote_id)` — one SHA per commit per remote.
+- **JGit must be on the correct branch ref** before writing files and committing. Call `git.checkout().setName(branchName).call()` (create if absent) — writing files to the branch directory is not sufficient.
+- **Pull/clone DB changes must be wrapped in a transaction.** Partial imports (some commits in, some not) are worse than a clean failure.
+- **Parent IDs on pull/clone** are reconstructed by walking commits oldest-first and maintaining a `Map<String gitSha, Long localId>` as rows are inserted. Do not rely on the `commit_id` field inside `gitcraft.json` — that is the original server's local ID, which will differ here.
+- **Merge commits** (both `parent_commit_id` and `merge_parent_commit_id` set): when pushing, if both parents have SHAs in `commit_git_shas`, create a real Git merge commit with two parents. Preserves DAG shape on GitHub.
+- All JGit network operations (clone, fetch, push) are blocking and must run via `runTaskAsynchronously`. Never call them on the main thread.
+- GitHub OAuth device flow uses `java.net.http.HttpClient` (Java 11+, no extra dependency). The `client_id` comes from `config.yml → github.client-id`. If blank, log a warning on startup and reject `/gitcraft login` with a clear message.
+- Token scope requested: `repo` (covers both public and private repos). Not configurable — always request `repo`.
+
 ---
 
 ## Project Structure
@@ -64,7 +80,12 @@ gitcraft/
     │   ├── database/              ← SQLite connection, schema, DAOs
     │   ├── commands/              ← /gitcraft subcommands
     │   ├── export/                ← Schematic generation via WorldEdit API
-    │   └── api/                   ← REST client for backend (Phase 4+)
+    │   ├── commit/                ← CommitService pipeline
+    │   ├── diff/                  ← DiffService, GhostBlockManager
+    │   ├── merge/                 ← MergeService, CherryPickService, OpManager
+    │   ├── github/                ← OAuth device flow (GitHubAuthService)
+    │   └── git/                   ← JGit wrappers (GitRepoManager, CommitMapper,
+    │                                  GitPushService, GitPullService, GitCloneService)
     └── resources/
         ├── plugin.yml
         └── config.yml
@@ -86,62 +107,54 @@ A "commit" in GitCraft is:
 - Metadata: who committed (player UUID), when (Unix timestamp in milliseconds), commit message
 - Stored and versioned via Gitea on the backend (Phase 5)
 
-### Core SQLite Schema (current: v4)
+### Core SQLite Schema (current: v9 → target: v10)
 
 Repos are per-player. Identity is `(owner_uuid, name)`. The first branch is always `main`.
 Schematic files are stored under `<schematicsDir>/<branchId>/<uuid>.schem`.
+JGit working trees live under `<gitDir>/<ownerUuid>/<repoName>/`.
+
+The authoritative schema lives in `src/main/resources/database/schema.sql`.
+Schema changes are managed by `SchemaMigrator`. The `commits` table is append-only — do not modify committed rows.
+
+**v9 tables (existing):** `repos`, `branches`, `heads`, `commits` (with `parent_commit_id`, `merge_parent_commit_id`, `cherry_pick_source_id`, `fork_commit_id` on branches), `stashes`
+
+**v10 additions (Phase 4):**
 
 ```sql
-CREATE TABLE IF NOT EXISTS repos (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    owner_uuid  TEXT    NOT NULL,
-    name        TEXT    NOT NULL,
-    created_at  INTEGER NOT NULL,
-    UNIQUE(owner_uuid, name)
-);
-
-CREATE TABLE IF NOT EXISTS branches (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    repo_id    INTEGER NOT NULL REFERENCES repos(id),
-    name       TEXT    NOT NULL,
-    created_at INTEGER NOT NULL,
+-- GitHub remotes registered for a repo
+CREATE TABLE IF NOT EXISTS remotes (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_id  INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+    name     TEXT    NOT NULL DEFAULT 'origin',
+    url      TEXT    NOT NULL,
     UNIQUE(repo_id, name)
 );
 
-CREATE TABLE IF NOT EXISTS heads (
-    player_uuid TEXT    NOT NULL,
-    repo_id     INTEGER NOT NULL REFERENCES repos(id),
-    branch_id   INTEGER NOT NULL REFERENCES branches(id),
-    PRIMARY KEY (player_uuid, repo_id)
+-- Per-player GitHub OAuth tokens
+CREATE TABLE IF NOT EXISTS github_tokens (
+    player_uuid  TEXT    NOT NULL PRIMARY KEY,
+    access_token TEXT    NOT NULL,
+    scope        TEXT    NOT NULL,
+    created_at   INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS commits (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    branch_id        INTEGER NOT NULL REFERENCES branches(id),
-    player_uuid      TEXT    NOT NULL,
-    player_name      TEXT    NOT NULL,
-    message          TEXT,
-    schem_path       TEXT    NOT NULL,
-    created_at       INTEGER NOT NULL,  -- Unix epoch milliseconds
-    world_uuid       TEXT    NOT NULL,
-    world_name       TEXT    NOT NULL,
-    min_x            INTEGER NOT NULL,
-    min_y            INTEGER NOT NULL,
-    min_z            INTEGER NOT NULL,
-    max_x            INTEGER NOT NULL,
-    max_y            INTEGER NOT NULL,
-    max_z            INTEGER NOT NULL,
-    parent_commit_id INTEGER            -- NULL for the first commit in a branch
+-- Maps local GitCraft commit IDs to Git SHAs, per remote.
+-- A commit with no row here is unpushed to that remote.
+-- SHA is inserted only after a successful push — never speculatively.
+CREATE TABLE IF NOT EXISTS commit_git_shas (
+    commit_id INTEGER NOT NULL REFERENCES commits(id) ON DELETE CASCADE,
+    remote_id INTEGER NOT NULL REFERENCES remotes(id) ON DELETE CASCADE,
+    git_sha   TEXT    NOT NULL,
+    PRIMARY KEY (commit_id, remote_id)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commit_git_shas_sha ON commit_git_shas(git_sha);
 ```
-
-Schema changes are managed by `SchemaMigrator`. The `commits` table is append-only — do not modify committed rows.
 
 ---
 
 ## Scope
 
-**Current phase: 3 of 5.** Do not implement features beyond the current phase. Full roadmap lives in README.md.
+**Current phase: 4 of 5.** Do not implement features beyond the current phase. Full roadmap lives in README.md.
 
 When a phase is complete, update this file before starting the next one.
 
@@ -150,14 +163,28 @@ When a phase is complete, update this file before starting the next one.
 ## Commands (eventual target — implement per phase)
 
 ```
-/gitcraft init <name>   ← starts region wand selection
-/gitcraft open <name>   ← opens an existing region for editing
-/gitcraft commit <msg>  ← exports region + saves commit metadata
-/gitcraft log           ← lists commits for your regions
-/gitcraft reset <id>         ← pastes the target commit's schematic into the world, history unchanged
-/gitcraft reset <id> --hard ← pastes the schematic and permanently deletes all commits after the target ID
-/gitcraft push          ← uploads schem to backend
-/gitcraft pull <id>     ← downloads schem from backend and pastes it
+/gitcraft init <name>            ← starts region wand selection
+/gitcraft open <name>            ← opens an existing region for editing
+/gitcraft commit <msg>           ← exports region + saves commit metadata
+/gitcraft log [branch] [page]    ← lists commits for your active repo
+/gitcraft reset <id>             ← pastes the target commit's schematic into the world, history unchanged
+/gitcraft reset <id> --hard      ← pastes the schematic and permanently deletes all commits after the target ID
+/gitcraft branch [name]          ← list branches or create a new branch
+/gitcraft checkout <branch>      ← switch to a branch and restore its HEAD schematic
+/gitcraft diff [id1 id2]         ← visualize block differences as ghost blocks
+/gitcraft merge <branch>         ← three-way merge with interactive conflict resolution
+/gitcraft cherry-pick <id>       ← apply a single commit onto the current branch
+/gitcraft stash [pop|list]       ← save/restore selection state
+/gitcraft repos                  ← list all repos you own
+
+/gitcraft login                  ← GitHub OAuth device flow authentication
+/gitcraft logout                 ← remove stored GitHub token
+/gitcraft remote add <name> <url>   ← register a GitHub remote for the active repo
+/gitcraft remote list               ← list remotes for the active repo
+/gitcraft remote remove <name>      ← remove a remote
+/gitcraft push [remote]          ← push local commits to GitHub
+/gitcraft pull [remote]          ← fetch + import remote commits, restore latest schematic
+/gitcraft clone <url> <name>     ← clone a GitHub repo into a new local GitCraft repo
 ```
 
 ---
@@ -166,8 +193,8 @@ When a phase is complete, update this file before starting the next one.
 
 - Plugin runs in a **Docker container** (Paper server), managed via **Portainer**
 - Schematics are stored on **TrueNAS** — mount path will be provided when relevant
-- Backend API will be a separate Docker container (Phase 4)
-- Gitea is the eventual version control backbone (Phase 5)
+- **GitHub is the remote version control backbone** (Phase 4). No custom REST API container. No Gitea.
+- JGit working trees live under `config.yml → github.git-dir` (default: `plugins/GitCraft/git/`)
 - Do not hardcode paths — all paths go in `config.yml`
 
 ---
