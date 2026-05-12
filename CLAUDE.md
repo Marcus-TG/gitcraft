@@ -60,7 +60,7 @@ You are building **GitCraft**, a Paper Minecraft plugin + self-hosted web backen
 - **Parent IDs on pull/clone** are reconstructed by walking commits oldest-first and maintaining a `Map<String gitSha, Long localId>` as rows are inserted. Do not rely on the `commit_id` field inside `gitcraft.json` — that is the original server's local ID, which will differ here.
 - **Merge commits** (both `parent_commit_id` and `merge_parent_commit_id` set): when pushing, if both parents have SHAs in `commit_git_shas`, create a real Git merge commit with two parents. Preserves DAG shape on GitHub.
 - All JGit network operations (clone, fetch, push) are blocking and must run via `runTaskAsynchronously`. Never call them on the main thread.
-- GitHub OAuth device flow uses `java.net.http.HttpClient` (Java 11+, no extra dependency). The `client_id` comes from `config.yml → github.client-id`. If blank, log a warning on startup and reject `/gitcraft login` with a clear message.
+- GitHub OAuth device flow uses `java.net.http.HttpClient` (Java 11+, no extra dependency). The OAuth client ID is a constant in `GitHubAuthService`; do not expose it as a config field.
 - Token scope requested: `repo` (covers both public and private repos). Not configurable — always request `repo`.
 
 ---

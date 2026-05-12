@@ -15,9 +15,5 @@ database:
   file: gitcraft.db
 
 github:
-  # GitHub OAuth App client_id. Required for /gitcraft login.
-  # Create an OAuth App at https://github.com/settings/developers.
-  # The plugin logs a warning on startup if this is blank.
-  client-id: ''
   # Directory for local JGit working trees. Relative paths resolve against the plugin data folder.
   git-dir: git

@@ -93,7 +93,7 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
         subs.put("cherry-pick", new CherryPickSubcommand(cherryPickService));
         subs.put("repos",    new ReposSubcommand(plugin, repoDao, branchDao));
         subs.put("stash",    new StashSubcommand(plugin, manager, stashDao, branchDao, headDao));
-        subs.put("login",    new LoginSubcommand(plugin, config.githubClientId(), authService, tokenDao));
+        subs.put("login",    new LoginSubcommand(plugin, authService, tokenDao));
         subs.put("logout",   new LogoutSubcommand(plugin, tokenDao));
         subs.put("remote",   new RemoteSubcommand(plugin, manager, remoteDao, gitRepoManager));
         subs.put("push",     new PushSubcommand(plugin, manager, tokenDao, remoteDao, commitDao, shaDao,

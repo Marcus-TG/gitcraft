@@ -64,7 +64,7 @@ gitcraft/
 - **Gradle 8+** (or use the included wrapper, `./gradlew`)
 - **Paper 1.21.4** server for local testing
 - **WorldEdit** plugin installed on that test server (runtime dependency)
-- A **GitHub OAuth App** with device flow enabled — get a `client_id` and put it in `config.yml → github.client-id`. The GitHub repo for a build must be created manually on GitHub before the first push (JGit cannot create repos).
+- A pre-created GitHub repo for push testing. JGit cannot create repos, so the GitHub repo for a build must exist before the first push.
 
 ## Build
 
@@ -101,15 +101,12 @@ Then `./gradlew build` + `/reload confirm` (or full restart) picks up changes.
 
 All runtime paths live in `config.yml`. Do not hardcode paths in source. Schematic storage path will eventually point at a TrueNAS mount in production; locally it defaults to `plugins/GitCraft/schematics/`.
 
-For Phase 4, two additional keys are required:
+For Phase 4, GitCraft also stores local JGit working trees under:
 
 ```yaml
 github:
-  client-id: ''    # GitHub OAuth App client_id — required for /gitcraft login
   git-dir: git     # Local JGit working trees (default: plugins/GitCraft/git/)
 ```
-
-If `client-id` is blank, the plugin logs a warning on startup and rejects `/gitcraft login` with a clear message.
 
 ## Threading rules (read before contributing)
 

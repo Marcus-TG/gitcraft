@@ -14,25 +14,17 @@ import java.util.logging.Level;
 public final class LoginSubcommand implements Subcommand {
 
     private final Plugin plugin;
-    private final String clientId;
     private final GitHubAuthService authService;
     private final GitHubTokenDao tokenDao;
 
-    public LoginSubcommand(Plugin plugin, String clientId,
-                           GitHubAuthService authService, GitHubTokenDao tokenDao) {
+    public LoginSubcommand(Plugin plugin, GitHubAuthService authService, GitHubTokenDao tokenDao) {
         this.plugin = plugin;
-        this.clientId = clientId;
         this.authService = authService;
         this.tokenDao = tokenDao;
     }
 
     @Override
     public void execute(Player player, String[] args) {
-        if (clientId == null || clientId.isBlank()) {
-            player.sendMessage(Messages.GITHUB_CLIENT_ID_NOT_CONFIGURED);
-            return;
-        }
-
         UUID playerId = player.getUniqueId();
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
@@ -43,7 +35,7 @@ public final class LoginSubcommand implements Subcommand {
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.WARNING, "Login DB check failed", e);
             }
-            authService.startAuthFlow(player, clientId, tokenDao, plugin);
+            authService.startAuthFlow(player, tokenDao, plugin);
         });
     }
 

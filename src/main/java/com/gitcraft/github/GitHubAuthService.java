@@ -25,6 +25,7 @@ public final class GitHubAuthService {
 
     private static final String DEVICE_CODE_URL     = "https://github.com/login/device/code";
     private static final String ACCESS_TOKEN_URL    = "https://github.com/login/oauth/access_token";
+    private static final String CLIENT_ID           = "Ov23liH0ITMckmqVHWWO";
     private static final String SCOPE               = "repo";
     private static final int    MAX_NETWORK_RETRIES = 3;
 
@@ -33,8 +34,8 @@ public final class GitHubAuthService {
     /**
      * Step 1: Request device code from GitHub.
      */
-    public DeviceCodeResponse requestDeviceCode(String clientId) throws IOException {
-        String body = "client_id=" + encode(clientId) + "&scope=" + encode(SCOPE);
+    public DeviceCodeResponse requestDeviceCode() throws IOException {
+        String body = "client_id=" + encode(CLIENT_ID) + "&scope=" + encode(SCOPE);
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(DEVICE_CODE_URL))
                 .header("Accept", "application/json")
@@ -55,8 +56,8 @@ public final class GitHubAuthService {
      * Step 2 (single poll): returns the access token on success, null if still pending.
      * Throws IOException on hard errors (expired, denied, network).
      */
-    public String pollForToken(String clientId, String deviceCode) throws IOException {
-        String body = "client_id=" + encode(clientId)
+    public String pollForToken(String deviceCode) throws IOException {
+        String body = "client_id=" + encode(CLIENT_ID)
                 + "&device_code=" + encode(deviceCode)
                 + "&grant_type=urn:ietf:params:oauth:grant-type:device_code";
         HttpRequest req = HttpRequest.newBuilder()
@@ -83,13 +84,12 @@ public final class GitHubAuthService {
      * Starts the full async device flow. Sends the player the URL + code, then polls
      * on the async scheduler until authorized, expired, or denied.
      */
-    public void startAuthFlow(Player player, String clientId,
-                              GitHubTokenDao tokenDao, Plugin plugin) {
+    public void startAuthFlow(Player player, GitHubTokenDao tokenDao, Plugin plugin) {
         UUID playerId = player.getUniqueId();
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             DeviceCodeResponse dcr;
             try {
-                dcr = requestDeviceCode(clientId);
+                dcr = requestDeviceCode();
             } catch (IOException e) {
                 plugin.getLogger().log(Level.WARNING, "GitHub device code request failed", e);
                 sendMessage(plugin, playerId, String.format(Messages.GITHUB_LOGIN_NETWORK_FAILED));
@@ -103,19 +103,18 @@ public final class GitHubAuthService {
             int[] intervalSeconds = {dcr.interval()};
             AtomicInteger networkFailures = new AtomicInteger(0);
 
-            scheduleNextPoll(plugin, playerId, clientId, dcr.deviceCode(), intervalSeconds,
+            scheduleNextPoll(plugin, playerId, dcr.deviceCode(), intervalSeconds,
                     networkFailures, tokenDao);
         });
     }
 
-    private void scheduleNextPoll(Plugin plugin, UUID playerId, String clientId,
-                                  String deviceCode, int[] intervalSeconds,
+    private void scheduleNextPoll(Plugin plugin, UUID playerId, String deviceCode, int[] intervalSeconds,
                                   AtomicInteger networkFailures, GitHubTokenDao tokenDao) {
         long delayTicks = (long) intervalSeconds[0] * 20L;
         Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
             String token;
             try {
-                token = pollForToken(clientId, deviceCode);
+                token = pollForToken(deviceCode);
                 networkFailures.set(0);
             } catch (IOException e) {
                 String msg = e.getMessage();
@@ -129,7 +128,7 @@ public final class GitHubAuthService {
                 }
                 if ("slow_down".equals(msg)) {
                     intervalSeconds[0] += 5;
-                    scheduleNextPoll(plugin, playerId, clientId, deviceCode, intervalSeconds,
+                    scheduleNextPoll(plugin, playerId, deviceCode, intervalSeconds,
                             networkFailures, tokenDao);
                     return;
                 }
@@ -139,14 +138,14 @@ public final class GitHubAuthService {
                     return;
                 }
                 // Retry silently
-                scheduleNextPoll(plugin, playerId, clientId, deviceCode, intervalSeconds,
+                scheduleNextPoll(plugin, playerId, deviceCode, intervalSeconds,
                         networkFailures, tokenDao);
                 return;
             }
 
             if (token == null) {
                 // authorization_pending — reschedule at same interval
-                scheduleNextPoll(plugin, playerId, clientId, deviceCode, intervalSeconds,
+                scheduleNextPoll(plugin, playerId, deviceCode, intervalSeconds,
                         networkFailures, tokenDao);
                 return;
             }

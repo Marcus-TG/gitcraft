@@ -191,7 +191,6 @@ public final class Messages {
     public static final String STASH_DB_FAILED        = "Stash operation failed: %s";
 
     // --- GitHub login ---
-    public static final String GITHUB_CLIENT_ID_NOT_CONFIGURED = "GitHub client-id is not configured. Ask your server admin to set github.client-id in config.yml.";
     public static final String GITHUB_ALREADY_LOGGED_IN        = "You are already logged in to GitHub. Use /gitcraft logout to switch accounts.";
     public static final String GITHUB_DEVICE_FLOW_PROMPT       = "Visit %s and enter code: %s";
     public static final String GITHUB_LOGIN_SUCCESS            = "GitHub login successful! Scope: %s";
