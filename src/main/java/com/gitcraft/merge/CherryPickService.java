@@ -9,6 +9,8 @@ import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.HeadRecord;
+import com.gitcraft.database.RepoDao;
+import com.gitcraft.database.RepoRecord;
 import com.gitcraft.diff.DiffResult;
 import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.selection.Selection;
@@ -65,6 +67,7 @@ public final class CherryPickService {
     private final CommitDao commitDao;
     private final BranchDao branchDao;
     private final HeadDao headDao;
+    private final RepoDao repoDao;
     private final GhostBlockManager ghostBlockManager;
     private final OpManager opManager;
     private final CommitService commitService;
@@ -75,6 +78,7 @@ public final class CherryPickService {
                              CommitDao commitDao,
                              BranchDao branchDao,
                              HeadDao headDao,
+                             RepoDao repoDao,
                              GhostBlockManager ghostBlockManager,
                              OpManager opManager,
                              CommitService commitService,
@@ -84,6 +88,7 @@ public final class CherryPickService {
         this.commitDao = commitDao;
         this.branchDao = branchDao;
         this.headDao = headDao;
+        this.repoDao = repoDao;
         this.ghostBlockManager = ghostBlockManager;
         this.opManager = opManager;
         this.commitService = commitService;
@@ -221,16 +226,23 @@ public final class CherryPickService {
                 return;
             }
 
+            RepoRecord repo = repoDao.findById(repoId).orElse(null);
+            int ox = repo != null ? repo.effectiveOffsetX() : 0;
+            int oy = repo != null ? repo.effectiveOffsetY() : 0;
+            int oz = repo != null ? repo.effectiveOffsetZ() : 0;
+
             final Long baseIdFinal = base != null ? base.id() : null;
             final long targetHeadFinal = targetHeadId;
             final boolean staleBaseFinal = staleBase;
             final String cherryMessage = cherry.message();
+            final int oxFinal = ox, oyFinal = oy, ozFinal = oz;
 
             Bukkit.getScheduler().runTask(plugin, () -> finalizeStartOnMain(
                     playerId, repoId,
                     targetBranchId, targetBranchName,
                     sourceCommitId, baseIdFinal, targetHeadFinal,
                     cherryMessage, worldUuid, worldName,
+                    oxFinal, oyFinal, ozFinal,
                     result, staleBaseFinal));
 
         } catch (SQLException e) {
@@ -249,6 +261,7 @@ public final class CherryPickService {
                                      long sourceCommitId, Long baseCommitId, long targetHeadId,
                                      String sourceMessage,
                                      UUID worldUuid, String worldName,
+                                     int ox, int oy, int oz,
                                      ThreeWayDiff.Result result, boolean staleBase) {
         Player player = Bukkit.getPlayer(playerId);
         if (player == null || !player.isOnline()) return;
@@ -259,12 +272,13 @@ public final class CherryPickService {
             return;
         }
 
+        // Map keys are repo-space; world I/O adds the offset.
         Map<BlockVector3, BlockState> preMerge = new HashMap<>();
         for (BlockVector3 pos : result.autoApplied().keySet()) {
-            preMerge.put(pos, MergeOps.captureWorldState(world, pos));
+            preMerge.put(pos, MergeOps.captureWorldState(world, pos.add(ox, oy, oz)));
         }
         for (BlockVector3 pos : result.conflicts().keySet()) {
-            preMerge.put(pos, MergeOps.captureWorldState(world, pos));
+            preMerge.put(pos, MergeOps.captureWorldState(world, pos.add(ox, oy, oz)));
         }
 
         try (EditSession edit = WorldEdit.getInstance().newEditSessionBuilder()
@@ -272,7 +286,7 @@ public final class CherryPickService {
                 .maxBlocks(-1)
                 .build()) {
             for (Map.Entry<BlockVector3, BlockState> e : result.autoApplied().entrySet()) {
-                edit.setBlock(e.getKey(), e.getValue());
+                edit.setBlock(e.getKey().add(ox, oy, oz), e.getValue());
             }
         } catch (WorldEditException e) {
             plugin.getLogger().log(Level.WARNING, "Cherry-pick auto-apply failed", e);
@@ -286,6 +300,7 @@ public final class CherryPickService {
                 sourceCommitId, baseCommitId, targetHeadId,
                 sourceMessage,
                 worldUuid, worldName,
+                ox, oy, oz,
                 result.autoApplied(),
                 result.conflicts(),
                 preMerge);
@@ -303,7 +318,7 @@ public final class CherryPickService {
         }
 
         DiffResult ghostResult = MergeOps.buildConflictGhosts(result.conflicts());
-        ghostBlockManager.show(player, ghostResult, world);
+        ghostBlockManager.show(player, ghostResult, world, ox, oy, oz);
 
         player.sendMessage(String.format(Messages.CHERRYPICK_RESOLVING,
                 sourceCommitId, targetBranchName,
@@ -326,6 +341,7 @@ public final class CherryPickService {
             return;
         }
 
+        int ox = session.ox(), oy = session.oy(), oz = session.oz();
         try (EditSession edit = WorldEdit.getInstance().newEditSessionBuilder()
                 .world(BukkitAdapter.adapt(world))
                 .maxBlocks(-1)
@@ -333,7 +349,7 @@ public final class CherryPickService {
             for (Conflict c : session.conflicts().values()) {
                 BlockState chosen = side == Side.OURS ? c.ours() : c.theirs();
                 if (chosen == null) chosen = BlockTypes.AIR.getDefaultState();
-                edit.setBlock(c.pos(), chosen);
+                edit.setBlock(c.pos().add(ox, oy, oz), chosen);
                 session.resolutions().put(c.pos(), chosen);
             }
         } catch (WorldEditException e) {
@@ -364,12 +380,13 @@ public final class CherryPickService {
             return;
         }
 
+        int ox = session.ox(), oy = session.oy(), oz = session.oz();
         try (EditSession edit = WorldEdit.getInstance().newEditSessionBuilder()
                 .world(BukkitAdapter.adapt(world))
                 .maxBlocks(-1)
                 .build()) {
             for (Map.Entry<BlockVector3, BlockState> e : session.preMergeWorld().entrySet()) {
-                edit.setBlock(e.getKey(), e.getValue());
+                edit.setBlock(e.getKey().add(ox, oy, oz), e.getValue());
             }
         } catch (WorldEditException e) {
             plugin.getLogger().log(Level.WARNING, "Cherry-pick abort rollback failed", e);
@@ -405,8 +422,9 @@ public final class CherryPickService {
         }
 
         MergeOps.BBox bbox = MergeOps.unionBBox(session.preMergeWorld().keySet());
-        BlockVector3 pos1 = BlockVector3.at(bbox.minX(), bbox.minY(), bbox.minZ());
-        BlockVector3 pos2 = BlockVector3.at(bbox.maxX(), bbox.maxY(), bbox.maxZ());
+        int ox = session.ox(), oy = session.oy(), oz = session.oz();
+        BlockVector3 pos1 = BlockVector3.at(bbox.minX() + ox, bbox.minY() + oy, bbox.minZ() + oz);
+        BlockVector3 pos2 = BlockVector3.at(bbox.maxX() + ox, bbox.maxY() + oy, bbox.maxZ() + oz);
 
         String message = overrideMessage != null && !overrideMessage.isBlank()
                 ? overrideMessage

@@ -8,6 +8,7 @@ import com.gitcraft.database.Database;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.HeadRecord;
 import com.gitcraft.database.RemoteRecord;
+import com.gitcraft.database.RepoDao;
 import com.gitcraft.database.RepoRecord;
 import com.gitcraft.selection.Selection;
 import com.gitcraft.selection.SelectionManager;
@@ -59,14 +60,14 @@ public final class GitPullService {
                           RepoRecord repo, BranchRecord branch,
                           RemoteRecord remote, String accessToken,
                           Database database, CommitDao commitDao, CommitGitShaDao shaDao,
-                          HeadDao headDao, GitRepoManager gitRepoManager,
+                          HeadDao headDao, RepoDao repoDao, GitRepoManager gitRepoManager,
                           Path schematicsDir, SelectionManager selectionManager,
                           BlockVector3 pasteOrigin) {
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 doPull(plugin, playerId, repo, branch, remote, accessToken,
-                        database, commitDao, shaDao, headDao, gitRepoManager, schematicsDir,
+                        database, commitDao, shaDao, headDao, repoDao, gitRepoManager, schematicsDir,
                         selectionManager, pasteOrigin);
             } catch (Exception e) {
                 logger.log(Level.WARNING, "Pull failed", e);
@@ -79,7 +80,7 @@ public final class GitPullService {
                         RepoRecord repo, BranchRecord branch,
                         RemoteRecord remote, String accessToken,
                         Database database, CommitDao commitDao, CommitGitShaDao shaDao,
-                        HeadDao headDao, GitRepoManager gitRepoManager,
+                        HeadDao headDao, RepoDao repoDao, GitRepoManager gitRepoManager,
                         Path schematicsDir, SelectionManager selectionManager,
                         BlockVector3 pasteOrigin) throws Exception {
 
@@ -100,6 +101,9 @@ public final class GitPullService {
                 send(plugin, playerId, Messages.PULL_NOTHING_TO_PULL);
                 return;
             }
+
+            // Snapshot whether this branch is empty before import (guards setOffset below).
+            Long priorHead = commitDao.findLatestIdByBranch(branch.id()).orElse(null);
 
             // Find the newest SHA we already know about for this remote+branch
             Optional<String> knownTipSha = shaDao.findLatestShaForBranchAndRemote(branch.id(), remote.id());
@@ -187,6 +191,14 @@ public final class GitPullService {
                     lastSchemPath = targetSchemPath;
                 }
 
+                // Anchor repo-space origin on the first pull to a fresh branch.
+                if (pasteOrigin != null && priorHead == null && lastRecord != null) {
+                    repoDao.setOffset(repo.id(),
+                            pasteOrigin.x() - lastRecord.minX(),
+                            pasteOrigin.y() - lastRecord.minY(),
+                            pasteOrigin.z() - lastRecord.minZ());
+                }
+
                 conn.commit();
             } catch (Exception e) {
                 conn.rollback();
@@ -200,10 +212,16 @@ public final class GitPullService {
                 headDao.upsert(new HeadRecord(playerId, repo.id(), branch.id(), lastRecord.id()));
             }
 
+            // Re-read repo to get the effective offset — setOffset may have just set it.
+            RepoRecord freshRepo = repoDao.findById(repo.id()).orElse(null);
+            int ox = freshRepo != null ? freshRepo.effectiveOffsetX() : 0;
+            int oy = freshRepo != null ? freshRepo.effectiveOffsetY() : 0;
+            int oz = freshRepo != null ? freshRepo.effectiveOffsetZ() : 0;
+
             final int count = ordered.size();
             final CommitRecord finalRecord = lastRecord;
             final Path finalSchemPath = lastSchemPath;
-            final BlockVector3 finalPasteOrigin = pasteOrigin;
+            final int oxF = ox, oyF = oy, ozF = oz;
 
             // Restore latest schematic on main thread
             Bukkit.getScheduler().runTask(plugin, () -> {
@@ -211,7 +229,7 @@ public final class GitPullService {
                 if (p == null || !p.isOnline()) return;
 
                 if (finalRecord != null && finalSchemPath != null) {
-                    pasteSchematic(p, finalRecord, finalSchemPath, selectionManager, finalPasteOrigin);
+                    pasteSchematic(p, finalRecord, finalSchemPath, selectionManager, oxF, oyF, ozF);
                 }
                 p.sendMessage(String.format(Messages.PULL_SUCCESS, count, remote.name(), branch.name()));
             });
@@ -220,7 +238,7 @@ public final class GitPullService {
 
     // Paste schematic on main thread (same pattern as CheckoutSubcommand)
     private void pasteSchematic(Player p, CommitRecord record, Path schemPath,
-                                SelectionManager selectionManager, BlockVector3 pasteOrigin) {
+                                SelectionManager selectionManager, int ox, int oy, int oz) {
         World world = Bukkit.getWorld(record.worldUuid());
         if (world == null) world = Bukkit.getWorld(record.worldName());
         if (world == null) return;
@@ -233,9 +251,7 @@ public final class GitPullService {
             return;
         }
 
-        BlockVector3 to = pasteOrigin != null
-                ? pasteOrigin
-                : BlockVector3.at(record.minX(), record.minY(), record.minZ());
+        BlockVector3 to = BlockVector3.at(record.minX() + ox, record.minY() + oy, record.minZ() + oz);
         try (EditSession edit = WorldEdit.getInstance().newEditSessionBuilder()
                 .world(BukkitAdapter.adapt(world))
                 .maxBlocks(-1)
@@ -248,16 +264,8 @@ public final class GitPullService {
                             .build());
 
             Selection sel = selectionManager.getOrCreate(p.getUniqueId());
-            if (pasteOrigin != null) {
-                int dx = record.maxX() - record.minX();
-                int dy = record.maxY() - record.minY();
-                int dz = record.maxZ() - record.minZ();
-                sel.setPos1(world, pasteOrigin);
-                sel.setPos2(world, BlockVector3.at(pasteOrigin.getX() + dx, pasteOrigin.getY() + dy, pasteOrigin.getZ() + dz));
-            } else {
-                sel.setPos1(world, BlockVector3.at(record.minX(), record.minY(), record.minZ()));
-                sel.setPos2(world, BlockVector3.at(record.maxX(), record.maxY(), record.maxZ()));
-            }
+            sel.setPos1(world, BlockVector3.at(record.minX() + ox, record.minY() + oy, record.minZ() + oz));
+            sel.setPos2(world, BlockVector3.at(record.maxX() + ox, record.maxY() + oy, record.maxZ() + oz));
         } catch (WorldEditException e) {
             logger.log(Level.WARNING, "Pull paste failed", e);
         }

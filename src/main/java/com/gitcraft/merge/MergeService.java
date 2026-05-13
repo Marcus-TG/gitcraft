@@ -9,6 +9,8 @@ import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.HeadRecord;
+import com.gitcraft.database.RepoDao;
+import com.gitcraft.database.RepoRecord;
 import com.gitcraft.diff.DiffResult;
 import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.selection.Selection;
@@ -62,6 +64,7 @@ public final class MergeService {
     private final CommitDao commitDao;
     private final BranchDao branchDao;
     private final HeadDao headDao;
+    private final RepoDao repoDao;
     private final GhostBlockManager ghostBlockManager;
     private final OpManager opManager;
     private final CommitService commitService;
@@ -72,6 +75,7 @@ public final class MergeService {
                         CommitDao commitDao,
                         BranchDao branchDao,
                         HeadDao headDao,
+                        RepoDao repoDao,
                         GhostBlockManager ghostBlockManager,
                         OpManager opManager,
                         CommitService commitService,
@@ -81,6 +85,7 @@ public final class MergeService {
         this.commitDao = commitDao;
         this.branchDao = branchDao;
         this.headDao = headDao;
+        this.repoDao = repoDao;
         this.ghostBlockManager = ghostBlockManager;
         this.opManager = opManager;
         this.commitService = commitService;
@@ -167,6 +172,11 @@ public final class MergeService {
                 return;
             }
 
+            RepoRecord repo = repoDao.findById(repoId).orElse(null);
+            int ox = repo != null ? repo.effectiveOffsetX() : 0;
+            int oy = repo != null ? repo.effectiveOffsetY() : 0;
+            int oz = repo != null ? repo.effectiveOffsetZ() : 0;
+
             Clipboard baseClip   = ClipboardLoader.load(base.schemPath());
             Clipboard oursClip   = ClipboardLoader.load(target.schemPath());
             Clipboard theirsClip = ClipboardLoader.load(source.schemPath());
@@ -195,6 +205,7 @@ public final class MergeService {
             final long sourceHeadFinal = sourceHeadId;
             final Long baseIdFinal = baseId;
             final boolean staleBaseFinal = staleBase;
+            final int oxFinal = ox, oyFinal = oy, ozFinal = oz;
 
             Bukkit.getScheduler().runTask(plugin, () -> finalizeStartOnMain(
                     playerId, repoId,
@@ -202,6 +213,7 @@ public final class MergeService {
                     sourceBranchId, sourceBranchName,
                     targetHeadFinal, sourceHeadFinal, baseIdFinal,
                     worldUuid, worldName,
+                    oxFinal, oyFinal, ozFinal,
                     minX, minY, minZ, maxX, maxY, maxZ,
                     result, staleBaseFinal));
 
@@ -219,6 +231,7 @@ public final class MergeService {
                                      long sourceBranchId, String sourceBranchName,
                                      long targetHeadId, long sourceHeadId, Long baseId,
                                      UUID worldUuid, String worldName,
+                                     int ox, int oy, int oz,
                                      int minX, int minY, int minZ,
                                      int maxX, int maxY, int maxZ,
                                      ThreeWayDiff.Result result, boolean staleBase) {
@@ -232,12 +245,13 @@ public final class MergeService {
         }
 
         // Snapshot pre-merge world for autoApplied + conflict positions (rollback on abort).
+        // Map keys are repo-space; world I/O adds the offset.
         Map<BlockVector3, BlockState> preMerge = new HashMap<>();
         for (BlockVector3 pos : result.autoApplied().keySet()) {
-            preMerge.put(pos, MergeOps.captureWorldState(world, pos));
+            preMerge.put(pos, MergeOps.captureWorldState(world, pos.add(ox, oy, oz)));
         }
         for (BlockVector3 pos : result.conflicts().keySet()) {
-            preMerge.put(pos, MergeOps.captureWorldState(world, pos));
+            preMerge.put(pos, MergeOps.captureWorldState(world, pos.add(ox, oy, oz)));
         }
 
         // Apply auto-changes via a single EditSession.
@@ -246,7 +260,7 @@ public final class MergeService {
                 .maxBlocks(-1)
                 .build()) {
             for (Map.Entry<BlockVector3, BlockState> e : result.autoApplied().entrySet()) {
-                edit.setBlock(e.getKey(), e.getValue());
+                edit.setBlock(e.getKey().add(ox, oy, oz), e.getValue());
             }
         } catch (WorldEditException e) {
             plugin.getLogger().log(Level.WARNING, "Merge auto-apply failed", e);
@@ -260,6 +274,7 @@ public final class MergeService {
                 sourceBranchId, sourceBranchName,
                 targetHeadId, sourceHeadId, baseId,
                 worldUuid, worldName,
+                ox, oy, oz,
                 result.autoApplied(),
                 result.conflicts(),
                 preMerge);
@@ -279,7 +294,7 @@ public final class MergeService {
 
         // Spawn purple ghosts for conflicts.
         DiffResult ghostResult = MergeOps.buildConflictGhosts(result.conflicts());
-        ghostBlockManager.show(player, ghostResult, world);
+        ghostBlockManager.show(player, ghostResult, world, ox, oy, oz);
 
         player.sendMessage(String.format(Messages.MERGE_RESOLVING,
                 sourceBranchName, targetBranchName,
@@ -302,6 +317,7 @@ public final class MergeService {
             return;
         }
 
+        int ox = session.ox(), oy = session.oy(), oz = session.oz();
         try (EditSession edit = WorldEdit.getInstance().newEditSessionBuilder()
                 .world(BukkitAdapter.adapt(world))
                 .maxBlocks(-1)
@@ -309,7 +325,7 @@ public final class MergeService {
             for (Conflict c : session.conflicts().values()) {
                 BlockState chosen = side == Side.OURS ? c.ours() : c.theirs();
                 if (chosen == null) chosen = BlockTypes.AIR.getDefaultState();
-                edit.setBlock(c.pos(), chosen);
+                edit.setBlock(c.pos().add(ox, oy, oz), chosen);
                 session.resolutions().put(c.pos(), chosen);
             }
         } catch (WorldEditException e) {
@@ -341,12 +357,13 @@ public final class MergeService {
             return;
         }
 
+        int ox = session.ox(), oy = session.oy(), oz = session.oz();
         try (EditSession edit = WorldEdit.getInstance().newEditSessionBuilder()
                 .world(BukkitAdapter.adapt(world))
                 .maxBlocks(-1)
                 .build()) {
             for (Map.Entry<BlockVector3, BlockState> e : session.preMergeWorld().entrySet()) {
-                edit.setBlock(e.getKey(), e.getValue());
+                edit.setBlock(e.getKey().add(ox, oy, oz), e.getValue());
             }
         } catch (WorldEditException e) {
             plugin.getLogger().log(Level.WARNING, "Merge abort rollback failed", e);
@@ -383,11 +400,12 @@ public final class MergeService {
         }
 
         // Compute commit region from the union bbox of pre-merge snapshot positions
-        // (== union of base/target/source). Fall back to target bbox if empty (shouldn't happen).
+        // (== union of base/target/source). Keys are repo-space; add offset for world-space.
         MergeOps.BBox bbox = MergeOps.unionBBox(session.preMergeWorld().keySet());
+        int ox = session.ox(), oy = session.oy(), oz = session.oz();
 
-        BlockVector3 pos1 = BlockVector3.at(bbox.minX(), bbox.minY(), bbox.minZ());
-        BlockVector3 pos2 = BlockVector3.at(bbox.maxX(), bbox.maxY(), bbox.maxZ());
+        BlockVector3 pos1 = BlockVector3.at(bbox.minX() + ox, bbox.minY() + oy, bbox.minZ() + oz);
+        BlockVector3 pos2 = BlockVector3.at(bbox.maxX() + ox, bbox.maxY() + oy, bbox.maxZ() + oz);
 
         String message = overrideMessage != null && !overrideMessage.isBlank()
                 ? overrideMessage

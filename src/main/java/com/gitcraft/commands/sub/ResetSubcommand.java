@@ -5,6 +5,8 @@ import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.HeadRecord;
+import com.gitcraft.database.RepoDao;
+import com.gitcraft.database.RepoRecord;
 import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.selection.Selection;
 import com.gitcraft.selection.SelectionManager;
@@ -43,6 +45,7 @@ public final class ResetSubcommand implements Subcommand {
     private final SelectionManager manager;
     private final CommitDao commitDao;
     private final HeadDao headDao;
+    private final RepoDao repoDao;
     private final GhostBlockManager ghostBlockManager;
 
     // TODO: Entries are not evicted on disconnect. 30s TTL is sufficient for now.
@@ -54,11 +57,12 @@ public final class ResetSubcommand implements Subcommand {
     }
 
     public ResetSubcommand(GitCraft plugin, SelectionManager manager, CommitDao commitDao,
-                           HeadDao headDao, GhostBlockManager ghostBlockManager) {
+                           HeadDao headDao, RepoDao repoDao, GhostBlockManager ghostBlockManager) {
         this.plugin = plugin;
         this.manager = manager;
         this.commitDao = commitDao;
         this.headDao = headDao;
+        this.repoDao = repoDao;
         this.ghostBlockManager = ghostBlockManager;
     }
 
@@ -127,6 +131,7 @@ public final class ResetSubcommand implements Subcommand {
 
     private void loadAndDispatch(UUID playerId, long id, long activeBranchId, long activeRepoId) {
         CommitRecord record;
+        int ox = 0, oy = 0, oz = 0;
         try {
             Optional<CommitRecord> opt = commitDao.findById(id);
             if (opt.isEmpty()) {
@@ -134,6 +139,8 @@ public final class ResetSubcommand implements Subcommand {
                 return;
             }
             record = opt.get();
+            RepoRecord repo = repoDao.findById(activeRepoId).orElse(null);
+            if (repo != null) { ox = repo.effectiveOffsetX(); oy = repo.effectiveOffsetY(); oz = repo.effectiveOffsetZ(); }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Reset lookup failed", e);
             sendOnMain(playerId, String.format(Messages.RESET_DB_FAILED, safe(e.getMessage())));
@@ -153,13 +160,15 @@ public final class ResetSubcommand implements Subcommand {
         Clipboard clipboard = loadClipboard(playerId, record);
         if (clipboard == null) return;
 
-        Bukkit.getScheduler().runTask(plugin, () -> paste(playerId, record, clipboard, -1, activeRepoId));
+        final int oxF = ox, oyF = oy, ozF = oz;
+        Bukkit.getScheduler().runTask(plugin, () -> paste(playerId, record, clipboard, -1, activeRepoId, oxF, oyF, ozF));
     }
 
     private void loadAndDispatchHard(UUID playerId, long id, long activeBranchId, long activeRepoId) {
         CommitRecord record;
         List<CommitRecord> toDelete;
         int deletedCount;
+        int ox = 0, oy = 0, oz = 0;
         try {
             Optional<CommitRecord> opt = commitDao.findById(id);
             if (opt.isEmpty()) {
@@ -179,6 +188,8 @@ public final class ResetSubcommand implements Subcommand {
             }
 
             toDelete = commitDao.findNewerThan(id, record.branchId());
+            RepoRecord repo = repoDao.findById(activeRepoId).orElse(null);
+            if (repo != null) { ox = repo.effectiveOffsetX(); oy = repo.effectiveOffsetY(); oz = repo.effectiveOffsetZ(); }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Hard reset lookup failed", e);
             sendOnMain(playerId, String.format(Messages.RESET_DB_FAILED, safe(e.getMessage())));
@@ -219,7 +230,8 @@ public final class ResetSubcommand implements Subcommand {
 
         final CommitRecord rec = record;
         final int deleted = deletedCount;
-        Bukkit.getScheduler().runTask(plugin, () -> paste(playerId, rec, clipboard, deleted, activeRepoId));
+        final int oxF = ox, oyF = oy, ozF = oz;
+        Bukkit.getScheduler().runTask(plugin, () -> paste(playerId, rec, clipboard, deleted, activeRepoId, oxF, oyF, ozF));
     }
 
     private Clipboard loadClipboard(UUID playerId, CommitRecord record) {
@@ -237,14 +249,15 @@ public final class ResetSubcommand implements Subcommand {
         }
     }
 
-    private void paste(UUID playerId, CommitRecord record, Clipboard clipboard, int deletedAfter, long repoId) {
+    private void paste(UUID playerId, CommitRecord record, Clipboard clipboard, int deletedAfter, long repoId,
+                       int ox, int oy, int oz) {
         World world = Bukkit.getWorld(record.worldUuid());
         if (world == null) {
             sendNow(playerId, String.format(Messages.RESET_WORLD_GONE, record.worldName()));
             return;
         }
 
-        BlockVector3 to = BlockVector3.at(record.minX(), record.minY(), record.minZ());
+        BlockVector3 to = BlockVector3.at(record.minX() + ox, record.minY() + oy, record.minZ() + oz);
 
         try (EditSession edit = WorldEdit.getInstance().newEditSessionBuilder()
                 .world(BukkitAdapter.adapt(world))
@@ -256,6 +269,11 @@ public final class ResetSubcommand implements Subcommand {
                             .to(to)
                             .ignoreAirBlocks(false)
                             .build());
+
+            // Update selection to match the world-space footprint.
+            Selection sel = manager.getOrCreate(playerId);
+            sel.setPos1(world, BlockVector3.at(record.minX() + ox, record.minY() + oy, record.minZ() + oz));
+            sel.setPos2(world, BlockVector3.at(record.maxX() + ox, record.maxY() + oy, record.maxZ() + oz));
 
             int changed = edit.getBlockChangeCount();
             Player player = Bukkit.getPlayer(playerId);

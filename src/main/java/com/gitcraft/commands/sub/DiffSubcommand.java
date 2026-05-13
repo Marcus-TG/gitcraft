@@ -45,7 +45,8 @@ public final class DiffSubcommand implements Subcommand {
     // TODO: Pending entries are not evicted on disconnect. 30s TTL is sufficient for now.
     private final ConcurrentHashMap<UUID, PendingDiff> pendingDiffs = new ConcurrentHashMap<>();
 
-    private record PendingDiff(long commitAId, long commitBId, DiffResult result, long expiresAt) {
+    private record PendingDiff(long commitAId, long commitBId, DiffResult result, long expiresAt,
+                               int ox, int oy, int oz) {
         boolean isExpired() { return System.currentTimeMillis() > expiresAt; }
     }
 
@@ -158,7 +159,7 @@ public final class DiffSubcommand implements Subcommand {
                 sendOnMain(playerId, Messages.DIFF_NEED_TWO_COMMITS);
                 return;
             }
-            dispatchDiff(playerId, parent, head);
+            dispatchDiff(playerId, repoId, parent, head);
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Diff DB lookup failed", e);
             sendOnMain(playerId, String.format(Messages.DIFF_DB_FAILED, safe(e.getMessage())));
@@ -204,7 +205,7 @@ public final class DiffSubcommand implements Subcommand {
         }
 
         // target = before, head = after (HEAD is the current/newer state)
-        dispatchDiff(playerId, target, head);
+        dispatchDiff(playerId, activeRepoId, target, head);
     }
 
     // Returns null if no HEAD commit can be resolved (empty branch or no tracked HEAD).
@@ -275,16 +276,24 @@ public final class DiffSubcommand implements Subcommand {
             return;
         }
 
-        dispatchDiff(playerId, commitA, commitB);
+        dispatchDiff(playerId, repoIdA, commitA, commitB);
     }
 
     // --- Diff dispatch (still async) ---
 
-    private void dispatchDiff(UUID playerId, CommitRecord commitA, CommitRecord commitB) {
+    private void dispatchDiff(UUID playerId, long repoId, CommitRecord commitA, CommitRecord commitB) {
         if (!commitA.worldUuid().equals(commitB.worldUuid())) {
             sendOnMain(playerId, String.format(Messages.DIFF_CROSS_WORLD,
                     commitA.worldName(), commitB.worldName()));
             return;
+        }
+
+        int ox = 0, oy = 0, oz = 0;
+        try {
+            RepoRecord repo = repoDao.findById(repoId).orElse(null);
+            if (repo != null) { ox = repo.effectiveOffsetX(); oy = repo.effectiveOffsetY(); oz = repo.effectiveOffsetZ(); }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Diff repo offset lookup failed", e);
         }
 
         PendingDiff pending = pendingDiffs.get(playerId);
@@ -292,7 +301,8 @@ public final class DiffSubcommand implements Subcommand {
                 && pending.commitAId() == commitA.id()
                 && pending.commitBId() == commitB.id()) {
             pendingDiffs.remove(playerId);
-            spawnDiff(playerId, pending.result(), commitA.worldUuid(), commitA.worldName());
+            spawnDiff(playerId, pending.result(), commitA.worldUuid(), commitA.worldName(),
+                    pending.ox(), pending.oy(), pending.oz());
             return;
         }
 
@@ -313,15 +323,17 @@ public final class DiffSubcommand implements Subcommand {
         if (result.totalCount() > LARGE_DIFF_THRESHOLD) {
             pendingDiffs.put(playerId, new PendingDiff(
                     commitA.id(), commitB.id(), result,
-                    System.currentTimeMillis() + CONFIRM_TTL_MS));
+                    System.currentTimeMillis() + CONFIRM_TTL_MS,
+                    ox, oy, oz));
             sendOnMain(playerId, String.format(Messages.DIFF_LARGE_WARN, result.totalCount()));
             return;
         }
 
-        spawnDiff(playerId, result, commitA.worldUuid(), commitA.worldName());
+        spawnDiff(playerId, result, commitA.worldUuid(), commitA.worldName(), ox, oy, oz);
     }
 
-    private void spawnDiff(UUID playerId, DiffResult result, UUID worldUuid, String worldName) {
+    private void spawnDiff(UUID playerId, DiffResult result, UUID worldUuid, String worldName,
+                           int ox, int oy, int oz) {
         Bukkit.getScheduler().runTask(plugin, () -> {
             Player p = Bukkit.getPlayer(playerId);
             if (p == null || !p.isOnline()) return;
@@ -332,7 +344,7 @@ public final class DiffSubcommand implements Subcommand {
                 return;
             }
 
-            ghostBlockManager.show(p, result, world);
+            ghostBlockManager.show(p, result, world, ox, oy, oz);
             p.sendMessage(String.format(Messages.DIFF_SUCCESS, result.totalCount()));
         });
     }

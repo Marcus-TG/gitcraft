@@ -45,6 +45,14 @@ public final class GhostBlockManager implements Listener {
 
     /** Must be called on the main thread. Replaces any existing diff for this player. */
     public void show(Player player, DiffResult result, World world) {
+        show(player, result, world, 0, 0, 0);
+    }
+
+    /**
+     * Offset-aware variant. {@code ox/oy/oz} convert repo-space ghost positions to world-space.
+     * Must be called on the main thread.
+     */
+    public void show(Player player, DiffResult result, World world, int ox, int oy, int oz) {
         clear(player);
 
         List<Entity> entities = new ArrayList<>(result.totalCount());
@@ -52,7 +60,7 @@ public final class GhostBlockManager implements Listener {
 
         for (GhostBlock ghost : result.ghosts()) {
             BlockVector3 pos = ghost.worldPos();
-            org.bukkit.Location loc = new org.bukkit.Location(world, pos.x(), pos.y(), pos.z());
+            org.bukkit.Location loc = new org.bukkit.Location(world, pos.x() + ox, pos.y() + oy, pos.z() + oz);
 
             BlockData blockData = ghost.type() == GhostType.REMOVED
                     ? ghost.beforeBlock()

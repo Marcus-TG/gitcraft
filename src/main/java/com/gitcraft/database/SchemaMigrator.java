@@ -31,11 +31,14 @@ import java.util.stream.Stream;
  *             commit that was cherry-picked. Metadata only; not part of the parent DAG.
  * v9    → v10: adds {@code remotes}, {@code github_tokens}, and {@code commit_git_shas} tables
  *              for GitHub integration (Phase 4). New tables only; no ALTER needed.
+ * v10   → v11: adds {@code repos.origin_offset_{x,y,z,set}} — stable repo-space origin for
+ *              coordinate translation. Four ALTER TABLE statements; safe to run on fresh installs
+ *              (duplicate-column errors suppressed).
  */
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 10;
+    private static final int CURRENT_VERSION = 11;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held
@@ -115,6 +118,24 @@ public final class SchemaMigrator {
         // v9 → v10: new tables (remotes, github_tokens, commit_git_shas + index).
         // schema.sql CREATE TABLE IF NOT EXISTS handles both fresh installs and upgrades;
         // no explicit ALTER blocks needed here.
+
+        if (existing < 11) {
+            // v10 → v11: add origin_offset columns to repos. Fresh installs already have them
+            // via schema.sql; suppress duplicate-column errors.
+            String[] alters = {
+                "ALTER TABLE repos ADD COLUMN origin_offset_x   INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE repos ADD COLUMN origin_offset_y   INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE repos ADD COLUMN origin_offset_z   INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE repos ADD COLUMN origin_offset_set INTEGER NOT NULL DEFAULT 0"
+            };
+            for (String alter : alters) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute(alter);
+                } catch (SQLException e) {
+                    if (!e.getMessage().toLowerCase().contains("duplicate column name")) throw e;
+                }
+            }
+        }
 
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES (?, ?)")) {

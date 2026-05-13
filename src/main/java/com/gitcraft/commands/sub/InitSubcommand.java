@@ -64,7 +64,7 @@ public final class InitSubcommand implements Subcommand {
             }
 
             long now = System.currentTimeMillis();
-            long repoId   = repoDao.insert(new RepoRecord(null, playerId, name, now));
+            long repoId   = repoDao.insert(new RepoRecord(null, playerId, name, now, 0, 0, 0, false));
             long branchId = branchDao.insert(new BranchRecord(null, repoId, BranchConstants.DEFAULT_BRANCH, now, null));
             headDao.upsert(new HeadRecord(playerId, repoId, branchId, null));
 

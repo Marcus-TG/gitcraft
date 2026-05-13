@@ -124,7 +124,7 @@ public final class PullSubcommand implements Subcommand {
                 }
 
                 pullService.pullAsync(plugin, playerId, repo, branch, remote,
-                        token.accessToken(), database, commitDao, shaDao, headDao,
+                        token.accessToken(), database, commitDao, shaDao, headDao, repoDao,
                         gitRepoManager, schematicsDir, selectionManager, pasteOrigin);
 
             } catch (SQLException e) {

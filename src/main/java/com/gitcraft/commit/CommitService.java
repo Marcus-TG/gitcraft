@@ -7,6 +7,8 @@ import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.HeadRecord;
+import com.gitcraft.database.RepoDao;
+import com.gitcraft.database.RepoRecord;
 import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.export.SchematicExporter;
 import com.gitcraft.util.Messages;
@@ -36,16 +38,18 @@ public final class CommitService {
     private final BranchDao branchDao;
     private final HeadDao headDao;
     private final GhostBlockManager ghostBlockManager;
+    private final RepoDao repoDao;
 
     public CommitService(GitCraft plugin, SchematicExporter exporter,
                          CommitDao commitDao, BranchDao branchDao, HeadDao headDao,
-                         GhostBlockManager ghostBlockManager) {
+                         GhostBlockManager ghostBlockManager, RepoDao repoDao) {
         this.plugin = plugin;
         this.exporter = exporter;
         this.commitDao = commitDao;
         this.branchDao = branchDao;
         this.headDao = headDao;
         this.ghostBlockManager = ghostBlockManager;
+        this.repoDao = repoDao;
     }
 
     public void commitAsync(UUID playerId,
@@ -114,7 +118,21 @@ public final class CommitService {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             boolean schemWritten = false;
             try {
-                exporter.writeSchematic(weWorld, pos1, pos2, schemPath);
+                // Translate world-space bbox to repo-space using the repo's effective offset.
+                RepoRecord repo = repoDao.findById(repoId).orElse(null);
+                int ox = repo != null ? repo.effectiveOffsetX() : 0;
+                int oy = repo != null ? repo.effectiveOffsetY() : 0;
+                int oz = repo != null ? repo.effectiveOffsetZ() : 0;
+
+                int repoMinX = minX - ox, repoMinY = minY - oy, repoMinZ = minZ - oz;
+                int repoMaxX = maxX - ox, repoMaxY = maxY - oy, repoMaxZ = maxZ - oz;
+
+                exporter.writeSchematic(weWorld,
+                        BlockVector3.at(minX, minY, minZ),
+                        BlockVector3.at(maxX, maxY, maxZ),
+                        BlockVector3.at(repoMinX, repoMinY, repoMinZ),
+                        BlockVector3.at(repoMaxX, repoMaxY, repoMaxZ),
+                        schemPath);
                 schemWritten = true;
 
                 Long parentCommitId;
@@ -134,7 +152,7 @@ public final class CommitService {
                         null, parentCommitId, mergeParentId, cherryPickSourceId,
                         branchId, playerId, playerName, message,
                         schemPath.toString(), createdAt,
-                        worldUuid, worldName, minX, minY, minZ, maxX, maxY, maxZ));
+                        worldUuid, worldName, repoMinX, repoMinY, repoMinZ, repoMaxX, repoMaxY, repoMaxZ));
 
                 try {
                     headDao.upsert(new HeadRecord(playerId, repoId, branchId, id));

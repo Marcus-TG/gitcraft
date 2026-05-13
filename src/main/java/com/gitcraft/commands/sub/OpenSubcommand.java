@@ -92,16 +92,17 @@ public final class OpenSubcommand implements Subcommand {
                 return;
             }
 
+            RepoRecord repo = repoOpt.get();
             CommitRecord record = rows.get(0);
             headDao.upsert(new HeadRecord(playerId, repoId, branchId, record.id()));
-            Bukkit.getScheduler().runTask(plugin, () -> applyOnMain(playerId, repoName, repoId, branchId, record));
+            Bukkit.getScheduler().runTask(plugin, () -> applyOnMain(playerId, repoName, repo, branchId, record));
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Open lookup failed", e);
             sendOnMain(playerId, String.format(Messages.OPEN_DB_FAILED, safe(e.getMessage())));
         }
     }
 
-    private void applyOnMain(UUID playerId, String repoName, long repoId, long branchId, CommitRecord record) {
+    private void applyOnMain(UUID playerId, String repoName, RepoRecord repo, long branchId, CommitRecord record) {
         Player player = Bukkit.getPlayer(playerId);
         if (player == null || !player.isOnline()) return;
 
@@ -111,13 +112,15 @@ public final class OpenSubcommand implements Subcommand {
             return;
         }
 
+        int ox = repo.effectiveOffsetX(), oy = repo.effectiveOffsetY(), oz = repo.effectiveOffsetZ();
+
         Selection selection = manager.getOrCreate(playerId);
-        selection.setRepoId(repoId);
+        selection.setRepoId(repo.id());
         selection.setRepoName(repoName);
         selection.setBranchId(branchId);
         selection.setBranchName(BranchConstants.DEFAULT_BRANCH);
-        selection.setPos1(world, BlockVector3.at(record.minX(), record.minY(), record.minZ()));
-        selection.setPos2(world, BlockVector3.at(record.maxX(), record.maxY(), record.maxZ()));
+        selection.setPos1(world, BlockVector3.at(record.minX() + ox, record.minY() + oy, record.minZ() + oz));
+        selection.setPos2(world, BlockVector3.at(record.maxX() + ox, record.maxY() + oy, record.maxZ() + oz));
 
         manager.enableSelecting(playerId);
         ghostBlockManager.clear(player);
@@ -130,8 +133,8 @@ public final class OpenSubcommand implements Subcommand {
 
         player.sendMessage(String.format(Messages.OPEN_RESTORED,
                 repoName, record.id(),
-                record.minX(), record.minY(), record.minZ(),
-                record.maxX(), record.maxY(), record.maxZ()));
+                record.minX() + ox, record.minY() + oy, record.minZ() + oz,
+                record.maxX() + ox, record.maxY() + oy, record.maxZ() + oz));
     }
 
     private void sendOnMain(UUID playerId, String message) {

@@ -123,7 +123,7 @@ public final class GitCloneService {
 
         try {
             long now = System.currentTimeMillis();
-            repoId = repoDao.insert(new RepoRecord(null, playerId, localRepoName, now));
+            repoId = repoDao.insert(new RepoRecord(null, playerId, localRepoName, now, 0, 0, 0, false));
             remoteId = remoteDao.insert(new RemoteRecord(null, repoId, "origin", remoteUrl));
             gitRepoManager.setRemoteUrl(jgitRepo, "origin", remoteUrl);
 
@@ -218,7 +218,21 @@ public final class GitCloneService {
                 headDao.upsert(new HeadRecord(playerId, repoId, defaultBranchId, headCommitId));
             }
 
+            // Anchor the repo-space origin so future local commits align with this paste position.
+            if (pasteOrigin != null && lastDefaultBranchRecord != null) {
+                repoDao.setOffset(repoId,
+                        pasteOrigin.x() - lastDefaultBranchRecord.minX(),
+                        pasteOrigin.y() - lastDefaultBranchRecord.minY(),
+                        pasteOrigin.z() - lastDefaultBranchRecord.minZ());
+            }
+
             conn.commit();
+
+            // Re-read repo to get the effective offset — setOffset may have just set it.
+            RepoRecord freshRepo = repoDao.findById(repoId).orElse(null);
+            int ox = freshRepo != null ? freshRepo.effectiveOffsetX() : 0;
+            int oy = freshRepo != null ? freshRepo.effectiveOffsetY() : 0;
+            int oz = freshRepo != null ? freshRepo.effectiveOffsetZ() : 0;
 
             final long finalRepoId = repoId;
             final long finalBranchId = defaultBranchId;
@@ -226,7 +240,7 @@ public final class GitCloneService {
             final CommitRecord finalRecord = lastDefaultBranchRecord;
             final Path finalSchemPath = lastDefaultSchemPath;
             final int finalCount = totalCommits;
-            final BlockVector3 finalPasteOrigin = pasteOrigin;
+            final int oxF = ox, oyF = oy, ozF = oz;
 
             Bukkit.getScheduler().runTask(plugin, () -> {
                 Player p = Bukkit.getPlayer(playerId);
@@ -240,7 +254,7 @@ public final class GitCloneService {
                 sel.setBranchName(finalDefaultBranch);
 
                 if (finalRecord != null && finalSchemPath != null) {
-                    pasteSchematic(p, finalRecord, finalSchemPath, selectionManager, finalPasteOrigin);
+                    pasteSchematic(p, finalRecord, finalSchemPath, selectionManager, oxF, oyF, ozF);
                 }
 
                 p.sendMessage(String.format(Messages.CLONE_SUCCESS, localRepoName, finalCount));
@@ -258,7 +272,7 @@ public final class GitCloneService {
     }
 
     private void pasteSchematic(Player p, CommitRecord record, Path schemPath,
-                                SelectionManager selectionManager, BlockVector3 pasteOrigin) {
+                                SelectionManager selectionManager, int ox, int oy, int oz) {
         World world = Bukkit.getWorld(record.worldUuid());
         if (world == null) world = Bukkit.getWorld(record.worldName());
         if (world == null) return;
@@ -271,9 +285,7 @@ public final class GitCloneService {
             return;
         }
 
-        BlockVector3 to = pasteOrigin != null
-                ? pasteOrigin
-                : BlockVector3.at(record.minX(), record.minY(), record.minZ());
+        BlockVector3 to = BlockVector3.at(record.minX() + ox, record.minY() + oy, record.minZ() + oz);
         try (EditSession edit = WorldEdit.getInstance().newEditSessionBuilder()
                 .world(BukkitAdapter.adapt(world))
                 .maxBlocks(-1)
@@ -286,16 +298,8 @@ public final class GitCloneService {
                             .build());
 
             Selection sel = selectionManager.getOrCreate(p.getUniqueId());
-            if (pasteOrigin != null) {
-                int dx = record.maxX() - record.minX();
-                int dy = record.maxY() - record.minY();
-                int dz = record.maxZ() - record.minZ();
-                sel.setPos1(world, pasteOrigin);
-                sel.setPos2(world, BlockVector3.at(pasteOrigin.getX() + dx, pasteOrigin.getY() + dy, pasteOrigin.getZ() + dz));
-            } else {
-                sel.setPos1(world, BlockVector3.at(record.minX(), record.minY(), record.minZ()));
-                sel.setPos2(world, BlockVector3.at(record.maxX(), record.maxY(), record.maxZ()));
-            }
+            sel.setPos1(world, BlockVector3.at(record.minX() + ox, record.minY() + oy, record.minZ() + oz));
+            sel.setPos2(world, BlockVector3.at(record.maxX() + ox, record.maxY() + oy, record.maxZ() + oz));
         } catch (WorldEditException e) {
             logger.log(Level.WARNING, "Clone paste failed", e);
         }

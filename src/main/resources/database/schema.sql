@@ -1,4 +1,4 @@
--- GitCraft schema v10. Idempotent. Run on every plugin enable via SchemaMigrator.
+-- GitCraft schema v11. Idempotent. Run on every plugin enable via SchemaMigrator.
 -- All schema changes happen here; do not CREATE TABLE elsewhere.
 -- v4: repos/branches/heads added; commits.region_name replaced by branch_id (destructive migration).
 -- v5: branches.fork_commit_id added to preserve commit graph lineage across branch boundaries.
@@ -7,12 +7,17 @@
 -- v8: stashes table added — per-(player, repo) LIFO stack of saved selection state.
 -- v9: commits.cherry_pick_source_id added — informational pointer to the cherry-picked source commit.
 -- v10: remotes, github_tokens, commit_git_shas added for GitHub integration (Phase 4).
+-- v11: repos.origin_offset_{x,y,z,set} added — stable repo-space origin for coordinate translation.
 
 CREATE TABLE IF NOT EXISTS repos (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    owner_uuid  TEXT    NOT NULL,
-    name        TEXT    NOT NULL,
-    created_at  INTEGER NOT NULL,
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_uuid        TEXT    NOT NULL,
+    name              TEXT    NOT NULL,
+    created_at        INTEGER NOT NULL,
+    origin_offset_x   INTEGER NOT NULL DEFAULT 0,
+    origin_offset_y   INTEGER NOT NULL DEFAULT 0,
+    origin_offset_z   INTEGER NOT NULL DEFAULT 0,
+    origin_offset_set INTEGER NOT NULL DEFAULT 0,
     UNIQUE(owner_uuid, name)
 );
 

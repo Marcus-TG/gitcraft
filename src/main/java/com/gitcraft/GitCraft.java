@@ -65,7 +65,7 @@ public final class GitCraft extends JavaPlugin {
         try {
             database.open();
             new SchemaMigrator().migrate(database);
-            getLogger().info("Schema migrated to v10.");
+            getLogger().info("Schema migrated to v11.");
         } catch (SQLException | IOException e) {
             getLogger().log(Level.SEVERE, "Failed to initialize SQLite database; disabling plugin.", e);
             Bukkit.getPluginManager().disablePlugin(this);
@@ -84,12 +84,12 @@ public final class GitCraft extends JavaPlugin {
         DiffService diffService = new DiffService(getLogger());
         this.ghostBlockManager = new GhostBlockManager(this);
         CommitService commitService = new CommitService(this, exporter, commitDao, branchDao, headDao,
-                ghostBlockManager);
+                ghostBlockManager, repoDao);
         OpManager opManager = new OpManager();
         MergeService mergeService = new MergeService(this, selectionManager, commitDao, branchDao,
-                headDao, ghostBlockManager, opManager, commitService, config);
+                headDao, repoDao, ghostBlockManager, opManager, commitService, config);
         CherryPickService cherryPickService = new CherryPickService(this, selectionManager, commitDao,
-                branchDao, headDao, ghostBlockManager, opManager, commitService, config);
+                branchDao, headDao, repoDao, ghostBlockManager, opManager, commitService, config);
 
         CommitMapper commitMapper = new CommitMapper();
         GitRepoManager gitRepoManager = new GitRepoManager(config.gitDir());

@@ -7,6 +7,8 @@ import com.gitcraft.database.CommitDao;
 import com.gitcraft.database.CommitRecord;
 import com.gitcraft.database.HeadDao;
 import com.gitcraft.database.HeadRecord;
+import com.gitcraft.database.RepoDao;
+import com.gitcraft.database.RepoRecord;
 import com.gitcraft.diff.GhostBlockManager;
 import com.gitcraft.selection.Selection;
 import com.gitcraft.selection.SelectionManager;
@@ -42,16 +44,18 @@ public final class CheckoutSubcommand implements Subcommand {
     private final CommitDao commitDao;
     private final BranchDao branchDao;
     private final HeadDao headDao;
+    private final RepoDao repoDao;
     private final GhostBlockManager ghostBlockManager;
 
     public CheckoutSubcommand(GitCraft plugin, SelectionManager manager,
                                CommitDao commitDao, BranchDao branchDao, HeadDao headDao,
-                               GhostBlockManager ghostBlockManager) {
+                               RepoDao repoDao, GhostBlockManager ghostBlockManager) {
         this.plugin = plugin;
         this.manager = manager;
         this.commitDao = commitDao;
         this.branchDao = branchDao;
         this.headDao = headDao;
+        this.repoDao = repoDao;
         this.ghostBlockManager = ghostBlockManager;
     }
 
@@ -127,11 +131,17 @@ public final class CheckoutSubcommand implements Subcommand {
             //       should allow any branch participant to checkout freely.
             headDao.upsert(new HeadRecord(playerId, repoId, targetBranchId, latestIdOpt.get()));
 
+            RepoRecord repo = repoDao.findById(repoId).orElse(null);
+            int ox = repo != null ? repo.effectiveOffsetX() : 0;
+            int oy = repo != null ? repo.effectiveOffsetY() : 0;
+            int oz = repo != null ? repo.effectiveOffsetZ() : 0;
+
             final long branchIdSnap = targetBranchId;
             final CommitRecord rec = record;
             final Clipboard cb = clipboard;
+            final int oxF = ox, oyF = oy, ozF = oz;
             Bukkit.getScheduler().runTask(plugin,
-                    () -> applyOnMain(playerId, branchIdSnap, targetBranchName, rec, cb));
+                    () -> applyOnMain(playerId, branchIdSnap, targetBranchName, rec, cb, oxF, oyF, ozF));
 
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Checkout DB error", e);
@@ -140,7 +150,7 @@ public final class CheckoutSubcommand implements Subcommand {
     }
 
     private void applyOnMain(UUID playerId, long targetBranchId, String targetBranchName,
-                              CommitRecord record, Clipboard clipboard) {
+                              CommitRecord record, Clipboard clipboard, int ox, int oy, int oz) {
         Player p = Bukkit.getPlayer(playerId);
         if (p == null || !p.isOnline()) return;
 
@@ -156,10 +166,10 @@ public final class CheckoutSubcommand implements Subcommand {
             return;
         }
 
-        sel.setPos1(world, BlockVector3.at(record.minX(), record.minY(), record.minZ()));
-        sel.setPos2(world, BlockVector3.at(record.maxX(), record.maxY(), record.maxZ()));
+        sel.setPos1(world, BlockVector3.at(record.minX() + ox, record.minY() + oy, record.minZ() + oz));
+        sel.setPos2(world, BlockVector3.at(record.maxX() + ox, record.maxY() + oy, record.maxZ() + oz));
 
-        BlockVector3 to = BlockVector3.at(record.minX(), record.minY(), record.minZ());
+        BlockVector3 to = BlockVector3.at(record.minX() + ox, record.minY() + oy, record.minZ() + oz);
         try (EditSession edit = WorldEdit.getInstance().newEditSessionBuilder()
                 .world(BukkitAdapter.adapt(world))
                 .maxBlocks(-1)

@@ -83,10 +83,10 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
         subs.put("clear",    new ClearSubcommand(manager));
         subs.put("commit",   new CommitSubcommand(plugin, manager, commitService));
         subs.put("log",      new LogSubcommand(plugin, commitDao, repoDao, branchDao));
-        subs.put("reset",    new ResetSubcommand(plugin, manager, commitDao, headDao, ghostBlockManager));
+        subs.put("reset",    new ResetSubcommand(plugin, manager, commitDao, headDao, repoDao, ghostBlockManager));
         subs.put("branch",   new BranchSubcommand(plugin, manager, commitDao, branchDao, headDao));
         subs.put("checkout", new CheckoutSubcommand(plugin, manager, commitDao, branchDao, headDao,
-                ghostBlockManager));
+                repoDao, ghostBlockManager));
         subs.put("diff",     new DiffSubcommand(plugin, manager, commitDao, branchDao, repoDao, headDao,
                 diffService, ghostBlockManager));
         subs.put("merge",    new MergeSubcommand(plugin, manager, branchDao, mergeService));

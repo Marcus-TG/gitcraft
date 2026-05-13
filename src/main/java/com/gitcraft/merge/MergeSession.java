@@ -28,6 +28,11 @@ public final class MergeSession implements Op {
     private final UUID worldUuid;
     private final String worldName;
 
+    /** Repo-space → world-space offset. All positions in the maps below are repo-space. */
+    private final int ox;
+    private final int oy;
+    private final int oz;
+
     private final Map<BlockVector3, BlockState> autoApplied;
     private final Map<BlockVector3, Conflict>   conflicts;
     /** Pre-merge world snapshot for autoApplied + conflict positions; used by abort to roll back. */
@@ -44,6 +49,7 @@ public final class MergeSession implements Op {
                         long targetHeadCommitId, long sourceHeadCommitId,
                         Long baseCommitId,
                         UUID worldUuid, String worldName,
+                        int ox, int oy, int oz,
                         Map<BlockVector3, BlockState> autoApplied,
                         Map<BlockVector3, Conflict>   conflicts,
                         Map<BlockVector3, BlockState> preMergeWorld) {
@@ -58,6 +64,9 @@ public final class MergeSession implements Op {
         this.baseCommitId = baseCommitId;
         this.worldUuid = worldUuid;
         this.worldName = worldName;
+        this.ox = ox;
+        this.oy = oy;
+        this.oz = oz;
         this.autoApplied = autoApplied;
         this.conflicts = conflicts;
         this.preMergeWorld = preMergeWorld;
@@ -80,6 +89,9 @@ public final class MergeSession implements Op {
     public Long baseCommitId() { return baseCommitId; }
     public UUID worldUuid() { return worldUuid; }
     public String worldName() { return worldName; }
+    public int ox() { return ox; }
+    public int oy() { return oy; }
+    public int oz() { return oz; }
     public Map<BlockVector3, BlockState> autoApplied() { return autoApplied; }
     public Map<BlockVector3, Conflict> conflicts() { return conflicts; }
     public Map<BlockVector3, BlockState> preMergeWorld() { return preMergeWorld; }

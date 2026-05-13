@@ -33,30 +33,39 @@ public final class SchematicExporter {
     }
 
     /**
-     * Captures the cuboid between {@code pos1} and {@code pos2} in {@code weWorld}
-     * and writes it as a Sponge V3 {@code .schem} to {@code target}. Block-entity
-     * NBT is stripped — structure only.
+     * Captures the world-space cuboid {@code worldPos1..worldPos2} and writes it into a
+     * repo-space clipboard ({@code repoPos1..repoPos2}), then writes a Sponge V3
+     * {@code .schem} to {@code target}. Block-entity NBT is stripped — structure only.
+     *
+     * <p>When the repo has no offset set, callers pass the same values for both world and
+     * repo positions, which produces a clipboard at the original world coordinates.
      */
     public void writeSchematic(com.sk89q.worldedit.world.World weWorld,
-                               BlockVector3 pos1,
-                               BlockVector3 pos2,
+                               BlockVector3 worldPos1,
+                               BlockVector3 worldPos2,
+                               BlockVector3 repoPos1,
+                               BlockVector3 repoPos2,
                                Path target) throws IOException, WorldEditException {
         Path parent = target.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
         }
 
-        CuboidRegion region = new CuboidRegion(weWorld, pos1, pos2);
-        BlockArrayClipboard clipboard = new BlockArrayClipboard(region);
-        clipboard.setOrigin(region.getMinimumPoint());
+        CuboidRegion worldRegion = new CuboidRegion(weWorld, worldPos1, worldPos2);
+        CuboidRegion repoRegion  = new CuboidRegion(repoPos1, repoPos2);
+        BlockArrayClipboard clipboard = new BlockArrayClipboard(repoRegion);
+        clipboard.setOrigin(repoRegion.getMinimumPoint());
 
         try (EditSession session = WorldEdit.getInstance().newEditSessionBuilder()
                 .world(weWorld)
                 .maxBlocks(-1)
                 .build()) {
 
+            // Copy from world-space region into repo-space clipboard. The fourth arg
+            // (repoPos1 = worldPos1 - offset) shifts each block's stored position so
+            // the clipboard's coordinate system is repo-space.
             ForwardExtentCopy copy = new ForwardExtentCopy(
-                    session, region, clipboard, region.getMinimumPoint());
+                    session, worldRegion, clipboard, repoRegion.getMinimumPoint());
             copy.setCopyingEntities(false);
             Operations.complete(copy);
         }
@@ -67,6 +76,14 @@ public final class SchematicExporter {
              ClipboardWriter writer = BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC.getWriter(out)) {
             writer.write(clipboard);
         }
+    }
+
+    /** Delegates to the full overload with identical world and repo positions (offset = 0). */
+    public void writeSchematic(com.sk89q.worldedit.world.World weWorld,
+                               BlockVector3 pos1,
+                               BlockVector3 pos2,
+                               Path target) throws IOException, WorldEditException {
+        writeSchematic(weWorld, pos1, pos2, pos1, pos2, target);
     }
 
     /**
