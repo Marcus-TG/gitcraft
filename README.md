@@ -140,22 +140,6 @@ github:
   git-dir: git     # Local JGit working trees (default: plugins/GitCraft/git/)
 ```
 
-## Threading rules (read before contributing)
-
-The hard rule: **never touch the database or filesystem from the main thread.** Event handlers fire on the main thread and must hand off to the async scheduler:
-
-```java
-Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-    // db / file work here
-});
-```
-
-Violations cause server lag that won't show up at low player counts and will be painful to debug later. Keep this rule in mind for every listener, command, DAO, and GitHub operation.
-
-## Contributing
-
-Keep event handlers thin, put database and filesystem work on Paper's async scheduler, and keep user-facing strings centralized in `Messages`. When unsure, do the simpler thing and leave a `// TODO:` for review.
-
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
