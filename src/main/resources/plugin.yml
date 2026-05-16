@@ -8,6 +8,7 @@ depend: [WorldEdit]
 commands:
   gitcraft:
     description: GitCraft root command.
+    aliases: [gc]
     usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|reset <id> [--hard]|branch <name>|checkout <branch>|merge <branch>|cherry-pick <commit-id>|stash [pop|list]|push [remote-name] [--force]>
     permission: gitcraft.use
 permissions:

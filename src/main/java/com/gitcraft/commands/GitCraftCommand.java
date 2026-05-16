@@ -8,6 +8,7 @@ import com.gitcraft.commands.sub.ClearSubcommand;
 import com.gitcraft.commands.sub.CloneSubcommand;
 import com.gitcraft.commands.sub.CommitSubcommand;
 import com.gitcraft.commands.sub.DiffSubcommand;
+import com.gitcraft.commands.sub.HelpSubcommand;
 import com.gitcraft.commands.sub.InitSubcommand;
 import com.gitcraft.commands.sub.LogSubcommand;
 import com.gitcraft.commands.sub.LoginSubcommand;
@@ -75,6 +76,7 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
                            GitPushService pushService, GitPullService pullService, GitCloneService cloneService,
                            GitHubAuthService authService, GitRepoManager gitRepoManager,
                            GitCraftConfig config) {
+        subs.put("help",     new HelpSubcommand());
         subs.put("init",     new InitSubcommand(plugin, manager, repoDao, branchDao, headDao));
         subs.put("open",     new OpenSubcommand(plugin, manager, commitDao, repoDao, branchDao, headDao,
                 ghostBlockManager));
@@ -113,7 +115,7 @@ public final class GitCraftCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 0) {
-            sender.sendMessage(Messages.UNKNOWN_SUBCOMMAND);
+            sender.sendMessage(Messages.HELP_HINT);
             return true;
         }
         Subcommand sub = subs.get(args[0].toLowerCase(Locale.ROOT));

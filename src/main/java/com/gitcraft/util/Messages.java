@@ -6,7 +6,62 @@ public final class Messages {
 
     public static final String PLAYER_ONLY = "This command can only be run by a player.";
     public static final String NO_PERMISSION = "You don't have permission to use GitCraft.";
-    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Try: init, open, pos1, pos2, clear, commit, log, reset, branch, checkout, diff, merge, cherry-pick, repos, stash, login, logout, remote, push, pull, clone.";
+    public static final String HELP_HINT = "Use /gc help to see GitCraft commands.";
+    public static final String UNKNOWN_SUBCOMMAND = "Unknown subcommand. Use /gc help to see GitCraft commands.";
+
+    public static final String[] HELP_OVERVIEW = {
+            "GitCraft help:",
+            "/gc init <repo> or /gc open <repo> - start or reopen a build repo.",
+            "/gc pos1, /gc pos2, /gc clear - manage your selected region.",
+            "/gc commit <msg>, /gc log <repo> - save snapshots and inspect history.",
+            "/gc branch [name], /gc checkout <branch>, /gc diff, /gc reset - work with versions.",
+            "/gc merge, /gc cherry-pick, /gc stash - handle advanced history workflows.",
+            "/gc login, /gc remote, /gc push, /gc pull, /gc clone - sync with GitHub remotes.",
+            "Use /gc help <command> for details."
+    };
+    public static final String HELP_UNKNOWN_TOPIC = "Unknown help topic '%s'. Use /gc help to see commands.";
+    public static final String HELP_INIT_USAGE = "Usage: /gc init <repo-name>";
+    public static final String HELP_INIT_DESC = "Creates a repo for a selected build and gives you the selection wand.";
+    public static final String HELP_OPEN_USAGE = "Usage: /gc open <repo>";
+    public static final String HELP_OPEN_DESC = "Reopens one of your repos and restores its latest main-branch snapshot.";
+    public static final String HELP_POS1_USAGE = "Usage: /gc pos1";
+    public static final String HELP_POS1_DESC = "Sets the first selection corner at your current block position.";
+    public static final String HELP_POS2_USAGE = "Usage: /gc pos2";
+    public static final String HELP_POS2_DESC = "Sets the second selection corner at your current block position.";
+    public static final String HELP_CLEAR_USAGE = "Usage: /gc clear";
+    public static final String HELP_CLEAR_DESC = "Clears your current GitCraft selection.";
+    public static final String HELP_COMMIT_USAGE = "Usage: /gc commit <msg>";
+    public static final String HELP_COMMIT_DESC = "Exports the selected region as a schematic snapshot and records commit metadata.";
+    public static final String HELP_LOG_USAGE = "Usage: /gc log <repo> [branch] [page]";
+    public static final String HELP_LOG_DESC = "Lists commits for one of your repos.";
+    public static final String HELP_RESET_USAGE = "Usage: /gc reset <id> [--hard]";
+    public static final String HELP_RESET_DESC = "Pastes a prior commit; --hard also deletes later commits on that branch after confirmation.";
+    public static final String HELP_BRANCH_USAGE = "Usage: /gc branch [<name>]";
+    public static final String HELP_BRANCH_DESC = "Lists branches, or creates and switches to a new branch.";
+    public static final String HELP_CHECKOUT_USAGE = "Usage: /gc checkout <branch>";
+    public static final String HELP_CHECKOUT_DESC = "Switches branches and restores that branch's latest snapshot.";
+    public static final String HELP_DIFF_USAGE = "Usage: /gc diff [<id> | <id1> <id2> | clear]";
+    public static final String HELP_DIFF_DESC = "Shows changed blocks between commits as ghost blocks, or clears the display.";
+    public static final String HELP_MERGE_USAGE = "Usage: /gc merge <branch> | accept ours|theirs | continue [msg] | abort | status";
+    public static final String HELP_MERGE_DESC = "Merges another branch into your current branch with conflict resolution.";
+    public static final String HELP_CHERRYPICK_USAGE = "Usage: /gc cherry-pick <commit-id> | accept ours|theirs | continue [msg] | abort | status";
+    public static final String HELP_CHERRYPICK_DESC = "Applies one commit onto your current branch with conflict resolution.";
+    public static final String HELP_STASH_USAGE = "Usage: /gc stash [pop|list]";
+    public static final String HELP_STASH_DESC = "Saves, lists, or restores selection state for the current repo.";
+    public static final String HELP_REPOS_USAGE = "Usage: /gc repos";
+    public static final String HELP_REPOS_DESC = "Lists your GitCraft repos.";
+    public static final String HELP_LOGIN_USAGE = "Usage: /gc login";
+    public static final String HELP_LOGIN_DESC = "Starts GitHub device login for remote sync.";
+    public static final String HELP_LOGOUT_USAGE = "Usage: /gc logout";
+    public static final String HELP_LOGOUT_DESC = "Removes your stored GitHub token.";
+    public static final String HELP_REMOTE_USAGE = "Usage: /gc remote add <name> <url> | list | remove <name>";
+    public static final String HELP_REMOTE_DESC = "Manages remotes for your current repo.";
+    public static final String HELP_PUSH_USAGE = "Usage: /gc push [remote-name] [--force]";
+    public static final String HELP_PUSH_DESC = "Uploads local commits to a configured remote.";
+    public static final String HELP_PULL_USAGE = "Usage: /gc pull [remote-name] [--here]";
+    public static final String HELP_PULL_DESC = "Fetches commits from a configured remote.";
+    public static final String HELP_CLONE_USAGE = "Usage: /gc clone <https-url> <repo-name> [--here]";
+    public static final String HELP_CLONE_DESC = "Imports a remote GitCraft repo into a local repo.";
 
     public static final String INIT_USAGE = "Usage: /gitcraft init <repo-name>";
     public static final String INIT_REPO_EXISTS = "Repo '%s' already exists. Use /gitcraft open %s to reopen it.";
