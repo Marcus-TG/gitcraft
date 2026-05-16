@@ -18,9 +18,13 @@ import org.bukkit.plugin.Plugin;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 public final class PushSubcommand implements Subcommand {
+
+    private static final String PERMISSION_FORCE = "gitcraft.push.force";
+    private static final long   CONFIRM_TTL_MS   = 30_000L;
 
     private final Plugin plugin;
     private final SelectionManager selectionManager;
@@ -31,6 +35,34 @@ public final class PushSubcommand implements Subcommand {
     private final GitPushService pushService;
     private final GitRepoManager gitRepoManager;
     private final Path schematicsDir;
+
+    // TODO: Entries are not evicted on disconnect. 30s TTL is sufficient for now.
+    private final ConcurrentHashMap<UUID, PendingForcePush> pending = new ConcurrentHashMap<>();
+
+    record PushArgs(String remoteName, boolean force) {
+        static PushArgs parse(String[] args) {
+            boolean force = false;
+            String remote = null;
+            for (String a : args) {
+                if ("--force".equals(a)) {
+                    if (force) return null;  // duplicate --force → invalid
+                    force = true;
+                } else if (remote == null) {
+                    remote = a;
+                } else {
+                    return null;             // >1 non-flag arg → invalid
+                }
+            }
+            return new PushArgs(remote == null ? "origin" : remote, force);
+        }
+    }
+
+    private record PendingForcePush(long repoId, long branchId, String remoteName, long expiresAt) {
+        boolean isExpired() { return System.currentTimeMillis() > expiresAt; }
+        boolean matches(long r, long b, String rm) {
+            return repoId == r && branchId == b && remoteName.equals(rm);
+        }
+    }
 
     public PushSubcommand(Plugin plugin, SelectionManager selectionManager,
                           GitHubTokenDao tokenDao, RemoteDao remoteDao,
@@ -56,14 +88,48 @@ public final class PushSubcommand implements Subcommand {
             return;
         }
 
-        String remoteName = args.length > 0 ? args[0] : "origin";
-        long repoId    = sel.repoId();
-        long branchId  = sel.branchId();
+        PushArgs parsed = PushArgs.parse(args);
+        if (parsed == null) {
+            player.sendMessage(Messages.PUSH_USAGE);
+            return;
+        }
+
+        String remoteName = parsed.remoteName();
+        boolean force     = parsed.force();
+        long repoId       = sel.repoId();
+        long branchId     = sel.branchId();
         String branchName = sel.branchName();
         String repoName   = sel.repoName();
         UUID playerId     = player.getUniqueId();
-        UUID ownerUuid    = playerId; // repos are per-player; owner == player
+        UUID ownerUuid    = playerId;
 
+        if (force) {
+            if (!player.hasPermission(PERMISSION_FORCE)) {
+                player.sendMessage(Messages.NO_PERMISSION);
+                return;
+            }
+
+            PendingForcePush existing = pending.get(playerId);
+            if (existing != null && !existing.isExpired() && existing.matches(repoId, branchId, remoteName)) {
+                pending.remove(playerId);
+                player.sendMessage(String.format(Messages.PUSH_FORCE_STARTED, remoteName, branchName));
+                scheduleAsync(plugin, playerId, ownerUuid, repoName, branchId, branchName,
+                        repoId, remoteName, true);
+            } else {
+                pending.put(playerId, new PendingForcePush(repoId, branchId, remoteName,
+                        System.currentTimeMillis() + CONFIRM_TTL_MS));
+                player.sendMessage(String.format(Messages.PUSH_FORCE_WARN, remoteName, branchName, remoteName));
+            }
+            return;
+        }
+
+        scheduleAsync(plugin, playerId, ownerUuid, repoName, branchId, branchName,
+                repoId, remoteName, false);
+    }
+
+    private void scheduleAsync(Plugin plugin, UUID playerId, UUID ownerUuid, String repoName,
+                               long branchId, String branchName, long repoId,
+                               String remoteName, boolean force) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 GitHubTokenRecord token = tokenDao.findByPlayer(playerId).orElse(null);
@@ -81,7 +147,7 @@ public final class PushSubcommand implements Subcommand {
 
                 pushService.pushAsync(plugin, playerId, ownerUuid, repoName,
                         branchId, branchName, remote, token.accessToken(),
-                        commitDao, shaDao, gitRepoManager, schematicsDir);
+                        commitDao, shaDao, gitRepoManager, schematicsDir, force);
 
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.WARNING, "Push guard DB failed", e);

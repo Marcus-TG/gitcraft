@@ -8,7 +8,7 @@ depend: [WorldEdit]
 commands:
   gitcraft:
     description: GitCraft root command.
-    usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|reset <id> [--hard]|branch <name>|checkout <branch>|merge <branch>|cherry-pick <commit-id>|stash [pop|list]>
+    usage: /gitcraft <init <name>|open <name>|pos1|pos2|clear|commit <msg>|log <region> [page]|reset <id> [--hard]|branch <name>|checkout <branch>|merge <branch>|cherry-pick <commit-id>|stash [pop|list]|push [remote-name] [--force]>
     permission: gitcraft.use
 permissions:
   gitcraft.use:
@@ -40,4 +40,7 @@ permissions:
     default: op
   gitcraft.stash:
     description: Save and restore selection state per repo (push/pop/list).
+    default: op
+  gitcraft.push.force:
+    description: Force-push a GitCraft branch and overwrite remote history.
     default: op

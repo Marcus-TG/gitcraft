@@ -40,12 +40,13 @@ public final class GitPushService {
                           long branchId, String branchName,
                           RemoteRecord remote, String accessToken,
                           CommitDao commitDao, CommitGitShaDao shaDao,
-                          GitRepoManager gitRepoManager, Path schematicsDir) {
+                          GitRepoManager gitRepoManager, Path schematicsDir,
+                          boolean force) {
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 doPush(plugin, playerId, ownerUuid, ownerName, branchId, branchName,
-                        remote, accessToken, commitDao, shaDao, gitRepoManager, schematicsDir);
+                        remote, accessToken, commitDao, shaDao, gitRepoManager, schematicsDir, force);
             } catch (Exception e) {
                 logger.log(Level.WARNING, "Push failed", e);
                 send(plugin, playerId, String.format(Messages.PUSH_FAILED, safe(e.getMessage())));
@@ -57,7 +58,8 @@ public final class GitPushService {
                         long branchId, String branchName,
                         RemoteRecord remote, String accessToken,
                         CommitDao commitDao, CommitGitShaDao shaDao,
-                        GitRepoManager gitRepoManager, Path schematicsDir) throws Exception {
+                        GitRepoManager gitRepoManager, Path schematicsDir,
+                        boolean force) throws Exception {
 
         // (The caller passes ownerName here as the repo name — see PushSubcommand.)
         try (Repository repo = gitRepoManager.openOrInit(ownerUuid, ownerName);
@@ -67,16 +69,36 @@ public final class GitPushService {
 
             ObjectId prePushHead = repo.resolve("HEAD");
 
+            // Align local JGit branch to the current DB tip before force-pushing.
+            // After a hard-reset, the local JGit ref may still point at deleted commits;
+            // resetting to the known tip SHA prevents them from being re-pushed.
+            String alignedTipSha = null;
+            if (force) {
+                Long tipCommitId = commitDao.findLatestIdByBranch(branchId).orElse(null);
+                if (tipCommitId != null) {
+                    alignedTipSha = shaDao.findAnyShaForCommit(tipCommitId).orElse(null);
+                    if (alignedTipSha != null) {
+                        git.reset().setMode(ResetCommand.ResetType.HARD).setRef(alignedTipSha).call();
+                    }
+                }
+            }
+
             logger.info("push lookup: repoId=" + remote.repoId() + " remoteId=" + remote.id()
                     + " remoteName=" + remote.name() + " branchId=" + branchId);
             List<Long> unpushedIds = shaDao.findUnpushedCommitIds(branchId, remote.id());
             if (unpushedIds.isEmpty()) {
-                send(plugin, playerId, String.format(Messages.PUSH_NOTHING_TO_PUSH, remote.name()));
-                return;
+                if (!force || alignedTipSha == null) {
+                    send(plugin, playerId, force
+                            ? Messages.PUSH_FORCE_NOTHING
+                            : String.format(Messages.PUSH_NOTHING_TO_PUSH, remote.name()));
+                    return;
+                }
+                // force=true + alignedTipSha != null: fall through to force-update the remote to the current tip
             }
 
-            send(plugin, playerId,
-                    String.format(Messages.PUSH_IN_PROGRESS, unpushedIds.size(), remote.name(), branchName));
+            send(plugin, playerId, force
+                    ? String.format(Messages.PUSH_FORCE_STARTED, remote.name(), branchName)
+                    : String.format(Messages.PUSH_IN_PROGRESS, unpushedIds.size(), remote.name(), branchName));
 
             List<long[]> commitIds = new ArrayList<>();
             List<String> shas = new ArrayList<>();
@@ -104,13 +126,14 @@ public final class GitPushService {
                 shas.add(sha);
             }
 
-            // The SHA we expect the remote branch tip to point at after a successful push.
-            String expectedTipSha = shas.isEmpty() ? null : shas.get(shas.size() - 1);
+            // When force-updating with 0 new commits, shas is empty — use the aligned tip as expected.
+            String expectedTipSha = shas.isEmpty() ? alignedTipSha : shas.get(shas.size() - 1);
 
             gitRepoManager.setRemoteUrl(repo, remote.name(), remote.url());
             Iterable<PushResult> results = git.push()
                     .setRemote(remote.url())
                     .setCredentialsProvider(GitRepoManager.credentials(accessToken))
+                    .setForce(force)
                     .call();
 
             for (PushResult result : results) {
@@ -118,17 +141,19 @@ public final class GitPushService {
                     RemoteRefUpdate.Status status = update.getStatus();
                     logger.info("push status: " + status + " for " + update.getRemoteName());
                     if (status == RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD) {
-                        // REJECTED_NONFASTFORWARD can be a false positive: GitHub may have accepted
-                        // the commits while JGit's local state was stale. Fetch and confirm.
-                        if (remoteTipMatchesAfterFetch(git, repo, remote, branchName, accessToken, expectedTipSha)) {
+                        // On normal push, REJECTED_NONFASTFORWARD can be a false positive:
+                        // GitHub may have accepted the commits while JGit's local state was stale.
+                        // On force push, NFF means GitHub refused the update (e.g., branch protection).
+                        if (!force && remoteTipMatchesAfterFetch(git, repo, remote, branchName, accessToken, expectedTipSha)) {
                             recordShas(commitIds, shas, remote, shaDao);
                             send(plugin, playerId,
                                     String.format(Messages.PUSH_SUCCESS, unpushedIds.size(), remote.name(), branchName));
                             logger.info("push nff recovered: recorded " + commitIds.size() + " SHA(s)");
                         } else {
                             rollback(git, prePushHead);
-                            send(plugin, playerId,
-                                    String.format(Messages.PUSH_REJECTED_NOT_FAST_FORWARD, remote.name()));
+                            send(plugin, playerId, force
+                                    ? String.format(Messages.PUSH_FAILED, "remote rejected force-push (branch may be protected)")
+                                    : String.format(Messages.PUSH_REJECTED_NOT_FAST_FORWARD, remote.name()));
                         }
                         return;
                     }

@@ -215,7 +215,7 @@ public final class Messages {
     public static final String REMOTE_DB_FAILED     = "Remote operation failed: %s";
 
     // --- Push ---
-    public static final String PUSH_USAGE                    = "Usage: /gitcraft push [remote-name]";
+    public static final String PUSH_USAGE                    = "Usage: /gitcraft push [remote-name] [--force]";
     public static final String PUSH_NO_REPO                  = "No active repo/branch. Use /gitcraft open <name> first.";
     public static final String PUSH_NO_TOKEN                 = GITHUB_NOT_LOGGED_IN;
     public static final String PUSH_NO_REMOTE                = "Remote '%s' not found. Add it with /gitcraft remote add %s <url>.";
@@ -225,6 +225,9 @@ public final class Messages {
     public static final String PUSH_REJECTED_NOT_FAST_FORWARD = "Push rejected: remote has new commits. Run /gitcraft pull %s first.";
     public static final String PUSH_REJECTED_NOT_FOUND       = "Push failed: repository not found on GitHub (404). Create the repo on GitHub first.";
     public static final String PUSH_FAILED                   = "Push failed: %s";
+    public static final String PUSH_FORCE_WARN               = "WARNING: Force-pushing will overwrite %s/%s on the remote and cannot be undone. Run /gitcraft push %s --force again within 30s to confirm.";
+    public static final String PUSH_FORCE_STARTED            = "Force-pushing to %s/%s...";
+    public static final String PUSH_FORCE_NOTHING            = "Nothing to force-push — branch has no commits.";
 
     // --- Pull ---
     public static final String PULL_USAGE               = "Usage: /gitcraft pull [remote-name] [--here]";
