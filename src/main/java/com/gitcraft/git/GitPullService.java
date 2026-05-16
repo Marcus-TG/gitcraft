@@ -38,11 +38,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -106,33 +103,19 @@ public final class GitPullService {
             // Snapshot whether this branch is empty before import (guards setOffset below).
             Long priorHead = commitDao.findLatestIdByBranch(branch.id()).orElse(null);
 
-            // Find the newest SHA we already know about for this remote+branch
-            Optional<String> knownTipSha = shaDao.findLatestShaForBranchAndRemote(branch.id(), remote.id());
-
             // Pre-seed the sha→localId map from DB (covers commits from previous pulls)
             Map<String, Long> shaToLocal = shaDao.findAllShasForRemote(remote.id());
 
-            // Collect new commits oldest-first (walk from tip back to the known boundary)
-            List<RevCommit> newCommits = new ArrayList<>();
-            try (RevWalk rw = new RevWalk(jgitRepo)) {
-                rw.markStart(rw.parseCommit(remoteTip));
-                if (knownTipSha.isPresent()) {
-                    ObjectId boundary = jgitRepo.resolve(knownTipSha.get());
-                    if (boundary != null) rw.markUninteresting(rw.parseCommit(boundary));
-                }
-                for (RevCommit rc : rw) {
-                    if (knownTipSha.isPresent() && rc.name().equals(knownTipSha.get())) break;
-                    newCommits.add(rc);
-                }
-            }
+            // Collect only commits that are not already known for this remote. This matters
+            // for branch pulls: a feature branch usually shares history with main, and those
+            // shared SHAs must remain parent links rather than being imported a second time.
+            List<RevCommit> ordered = GitPullPlanner.collectNewCommitsOldestFirst(
+                    jgitRepo, remoteTip, shaToLocal);
 
-            if (newCommits.isEmpty()) {
+            if (ordered.isEmpty()) {
                 send(plugin, playerId, Messages.PULL_NOTHING_TO_PULL);
                 return;
             }
-
-            // Process oldest first
-            List<RevCommit> ordered = newCommits.reversed();
 
             // All DB writes in a single transaction
             Connection conn = database.connection();

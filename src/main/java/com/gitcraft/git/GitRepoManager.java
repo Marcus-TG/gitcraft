@@ -3,6 +3,7 @@ package com.gitcraft.git;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
@@ -77,10 +78,28 @@ public final class GitRepoManager {
      * Must be called from an async thread.
      */
     public static void checkoutOrCreateBranch(Git git, String branchName) throws GitAPIException, IOException {
+        checkoutOrCreateBranch(git, branchName, null);
+    }
+
+    /**
+     * Ensures the JGit repo is on the given branch, creating it from {@code startPointSha}
+     * when provided. This keeps newly materialised local branches aligned with the DB graph
+     * instead of inheriting whichever branch happened to be checked out last.
+     */
+    public static void checkoutOrCreateBranch(Git git, String branchName, String startPointSha)
+            throws GitAPIException, IOException {
         Repository repo = git.getRepository();
         boolean exists = branchExists(repo, branchName);
         if (!exists && repo.resolve(Constants.HEAD) == null) {
             repo.updateRef(Constants.HEAD).link("refs/heads/" + branchName);
+            return;
+        }
+        if (!exists && startPointSha != null && repo.resolve(startPointSha) != null) {
+            git.checkout()
+                    .setName(branchName)
+                    .setCreateBranch(true)
+                    .setStartPoint(ObjectId.fromString(startPointSha).name())
+                    .call();
             return;
         }
         git.checkout()

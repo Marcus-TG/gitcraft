@@ -65,7 +65,12 @@ public final class GitPushService {
         try (Repository repo = gitRepoManager.openOrInit(ownerUuid, ownerName);
              Git git = new Git(repo)) {
 
-            GitRepoManager.checkoutOrCreateBranch(git, branchName);
+            logger.info("push lookup: repoId=" + remote.repoId() + " remoteId=" + remote.id()
+                    + " remoteName=" + remote.name() + " branchId=" + branchId);
+            List<Long> unpushedIds = shaDao.findUnpushedCommitIds(branchId, remote.id());
+
+            String branchStartSha = findBranchStartSha(repo, branchName, unpushedIds, commitDao, shaDao);
+            GitRepoManager.checkoutOrCreateBranch(git, branchName, branchStartSha);
 
             ObjectId prePushHead = repo.resolve("HEAD");
 
@@ -82,10 +87,6 @@ public final class GitPushService {
                     }
                 }
             }
-
-            logger.info("push lookup: repoId=" + remote.repoId() + " remoteId=" + remote.id()
-                    + " remoteName=" + remote.name() + " branchId=" + branchId);
-            List<Long> unpushedIds = shaDao.findUnpushedCommitIds(branchId, remote.id());
             if (unpushedIds.isEmpty()) {
                 if (!force || alignedTipSha == null) {
                     send(plugin, playerId, force
@@ -175,6 +176,19 @@ public final class GitPushService {
             send(plugin, playerId,
                     String.format(Messages.PUSH_SUCCESS, unpushedIds.size(), remote.name(), branchName));
         }
+    }
+
+    private String findBranchStartSha(Repository repo, String branchName, List<Long> unpushedIds,
+                                      CommitDao commitDao, CommitGitShaDao shaDao)
+            throws IOException, SQLException {
+        if (GitRepoManager.branchExists(repo, branchName) || unpushedIds.isEmpty()) {
+            return null;
+        }
+        CommitRecord firstUnpushed = commitDao.findById(unpushedIds.get(0)).orElse(null);
+        if (firstUnpushed == null || firstUnpushed.parentCommitId() == null) {
+            return null;
+        }
+        return shaDao.findAnyShaForCommit(firstUnpushed.parentCommitId()).orElse(null);
     }
 
     /**
