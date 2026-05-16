@@ -87,8 +87,8 @@ public final class SchematicExporter {
     }
 
     /**
-     * Replace every BaseBlock with its NBT-less BlockState. CLAUDE.md: capture structure, not contents.
-     * Result: chests come back empty, signs blank, spawners reset to default.
+     * Replace every BaseBlock with its NBT-less BlockState. GitCraft captures structure, not contents:
+     * chests come back empty, signs blank, and spawners reset to default.
      */
     private void stripBlockEntityNbt(Clipboard clipboard) throws WorldEditException {
         for (BlockVector3 pos : clipboard.getRegion()) {

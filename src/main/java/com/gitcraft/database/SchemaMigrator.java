@@ -30,7 +30,7 @@ import java.util.stream.Stream;
  * v8    → v9: adds {@code commits.cherry_pick_source_id} — informational pointer to the
  *             commit that was cherry-picked. Metadata only; not part of the parent DAG.
  * v9    → v10: adds {@code remotes}, {@code github_tokens}, and {@code commit_git_shas} tables
- *              for GitHub integration (Phase 4). New tables only; no ALTER needed.
+ *              for GitHub integration. New tables only; no ALTER needed.
  * v10   → v11: adds {@code repos.origin_offset_{x,y,z,set}} — stable repo-space origin for
  *              coordinate translation. Four ALTER TABLE statements; safe to run on fresh installs
  *              (duplicate-column errors suppressed).

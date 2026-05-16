@@ -47,7 +47,7 @@ import java.util.UUID;
 import java.util.logging.Level;
 
 /**
- * Orchestrates /gitcraft merge. Threading rules per CLAUDE.md:
+ * Orchestrates /gitcraft merge. Threading rules:
  *   - Command parse + guard: main thread.
  *   - DB lookups + clipboard IO + three-way compute: async.
  *   - World mutation (auto-apply, accept, abort restore) + ghost spawn: main thread (EditSession).

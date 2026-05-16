@@ -117,7 +117,7 @@ public final class GitCraft extends JavaPlugin {
             getLogger().warning("Command 'gitcraft' not declared in plugin.yml.");
         }
 
-        // Per CLAUDE.md: even directory creation is FS work — keep off main thread.
+        // Even directory creation is filesystem work, so keep it off the main thread.
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             try {
                 Files.createDirectories(config.schematicsDir());

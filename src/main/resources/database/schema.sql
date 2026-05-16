@@ -6,7 +6,7 @@
 -- v7: commits.merge_parent_commit_id added — second parent for merge commits (NULL otherwise).
 -- v8: stashes table added — per-(player, repo) LIFO stack of saved selection state.
 -- v9: commits.cherry_pick_source_id added — informational pointer to the cherry-picked source commit.
--- v10: remotes, github_tokens, commit_git_shas added for GitHub integration (Phase 4).
+-- v10: remotes, github_tokens, commit_git_shas added for GitHub integration.
 -- v11: repos.origin_offset_{x,y,z,set} added — stable repo-space origin for coordinate translation.
 -- v12: commit_git_shas uniqueness scoped to (remote_id, git_sha) — same SHA allowed across repos.
 

@@ -53,7 +53,7 @@ import java.util.logging.Level;
  *   ours   = active branch HEAD's schematic
  *   theirs = picked commit's schematic
  *
- * Threading rules per CLAUDE.md (identical to MergeService):
+ * Threading rules:
  *   - Command parse + guard: main thread.
  *   - DB lookups + clipboard IO + three-way compute: async.
  *   - World mutation + ghost spawn: main thread (EditSession).

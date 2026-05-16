@@ -4,8 +4,7 @@ import java.util.UUID;
 
 /**
  * Row in the {@code stashes} table. Snapshot of a player's selection state
- * (region corners + repo/branch context) without a schematic — coords only,
- * per project decision (see CLAUDE.md OQ14 in stash spec).
+ * (region corners + repo/branch context) without a schematic.
  */
 public record StashRecord(
         long id,

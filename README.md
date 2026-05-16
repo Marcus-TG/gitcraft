@@ -1,6 +1,6 @@
 # GitCraft
 
-Git-like version control for Minecraft builds. A Paper plugin paired with a self-hosted backend that lets players snapshot, share, and version regions of their world.
+Git-like version control for Minecraft builds. GitCraft is a Paper plugin that lets players snapshot, branch, diff, merge, push, pull, and restore regions of their world.
 
 ## What it is
 
@@ -22,17 +22,15 @@ GitCraft is **not** a block-change audit log. It does not track every block plac
 | Git auth           | GitHub OAuth device flow → HTTPS token        |
 | Deployment         | Docker + Portainer                            |
 
-## Phase roadmap
+## Features
 
-| Phase | Status | What gets built |
-|-------|--------|----------------|
-| 1 | ✅ Done | Region selection + export selected region to `.schem` |
-| 2 | ✅ Done | `/gitcraft commit` — attaches player UUID + timestamp, saves schem locally |
-| 3 | ✅ Done | Branches, `/gitcraft log`, `/gitcraft reset`, merge, cherry-pick, diff, stash |
-| 4 | **In progress** | GitHub integration — login (OAuth device flow), remote, push, pull, clone via JGit |
-| 5 | Planned | Web UI for browsing and forking builds |
-
-Current phase is tracked in `CLAUDE.md`. Do not implement features beyond the current phase without bumping it there first.
+- Region selection with a configurable wand
+- Local commits backed by Sponge `.schem` snapshots
+- Per-player repositories with branches and active HEAD tracking
+- Commit log, checkout, reset, diff, merge, cherry-pick, and stash commands
+- Conflict previews with ghost blocks
+- GitHub login, remotes, push, pull, and clone through JGit
+- SQLite persistence with schema migrations
 
 ## Project layout
 
@@ -40,7 +38,6 @@ Current phase is tracked in `CLAUDE.md`. Do not implement features beyond the cu
 gitcraft/
 ├── build.gradle
 ├── settings.gradle
-├── CLAUDE.md
 └── src/main/
     ├── java/com/gitcraft/
     │   ├── GitCraft.java          # Main plugin class
@@ -55,7 +52,42 @@ gitcraft/
     │   └── git/                   # JGit wrappers (push, pull, clone, commit mapping)
     └── resources/
         ├── plugin.yml
+        ├── database/schema.sql
         └── config.yml
+```
+
+## Commands
+
+```
+/gitcraft init <name>
+/gitcraft open <name>
+/gitcraft pos1
+/gitcraft pos2
+/gitcraft clear
+/gitcraft commit <msg>
+/gitcraft log [region] [page]
+/gitcraft reset <id> [--hard]
+/gitcraft branch [name]
+/gitcraft checkout <branch>
+/gitcraft diff [id1 id2]
+/gitcraft merge <branch>
+/gitcraft merge accept <ours|theirs>
+/gitcraft merge continue
+/gitcraft merge abort
+/gitcraft cherry-pick <commit-id>
+/gitcraft cherry-pick accept <ours|theirs>
+/gitcraft cherry-pick continue
+/gitcraft cherry-pick abort
+/gitcraft stash [pop|list]
+/gitcraft repos
+/gitcraft login
+/gitcraft logout
+/gitcraft remote add <name> <url>
+/gitcraft remote list
+/gitcraft remote remove <name>
+/gitcraft push [remote-name] [--force]
+/gitcraft pull [remote-name] [--here]
+/gitcraft clone <https-url> <repo-name> [--here]
 ```
 
 ## Prerequisites
@@ -64,7 +96,7 @@ gitcraft/
 - **Gradle 8+** (or use the included wrapper, `./gradlew`)
 - **Paper 1.21.4** server for local testing
 - **WorldEdit** plugin installed on that test server (runtime dependency)
-- A pre-created GitHub repo for push testing. JGit cannot create repos, so the GitHub repo for a build must exist before the first push.
+- A pre-created GitHub repo for pushing. JGit cannot create repos, so the GitHub repo for a build must exist before the first push.
 
 ## Build
 
@@ -99,9 +131,9 @@ Then `./gradlew build` + `/reload confirm` (or full restart) picks up changes.
 
 ## Configuration
 
-All runtime paths live in `config.yml`. Do not hardcode paths in source. Schematic storage path will eventually point at a TrueNAS mount in production; locally it defaults to `plugins/GitCraft/schematics/`.
+All runtime paths live in `config.yml`. Do not hardcode paths in source. Schematic storage can point at a mounted volume in production; locally it defaults to `plugins/GitCraft/schematics/`.
 
-For Phase 4, GitCraft also stores local JGit working trees under:
+GitCraft also stores local JGit working trees under:
 
 ```yaml
 github:
@@ -118,11 +150,11 @@ Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
 });
 ```
 
-Violations cause server lag that won't show up at low player counts and will be painful to debug later. Get it right from the start. Full constraints are in `CLAUDE.md`.
+Violations cause server lag that won't show up at low player counts and will be painful to debug later. Keep this rule in mind for every listener, command, DAO, and GitHub operation.
 
 ## Contributing
 
-Read `CLAUDE.md` first — it is the source of truth for architecture, scope, and style. Stay within the current phase. When unsure, do the simpler thing and leave a `// TODO:` for the user to review.
+Keep event handlers thin, put database and filesystem work on Paper's async scheduler, and keep user-facing strings centralized in `Messages`. When unsure, do the simpler thing and leave a `// TODO:` for review.
 
 ## License
 
