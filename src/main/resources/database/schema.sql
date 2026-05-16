@@ -1,4 +1,4 @@
--- GitCraft schema v11. Idempotent. Run on every plugin enable via SchemaMigrator.
+-- GitCraft schema v12. Idempotent. Run on every plugin enable via SchemaMigrator.
 -- All schema changes happen here; do not CREATE TABLE elsewhere.
 -- v4: repos/branches/heads added; commits.region_name replaced by branch_id (destructive migration).
 -- v5: branches.fork_commit_id added to preserve commit graph lineage across branch boundaries.
@@ -8,6 +8,7 @@
 -- v9: commits.cherry_pick_source_id added — informational pointer to the cherry-picked source commit.
 -- v10: remotes, github_tokens, commit_git_shas added for GitHub integration (Phase 4).
 -- v11: repos.origin_offset_{x,y,z,set} added — stable repo-space origin for coordinate translation.
+-- v12: commit_git_shas uniqueness scoped to (remote_id, git_sha) — same SHA allowed across repos.
 
 CREATE TABLE IF NOT EXISTS repos (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,7 +106,7 @@ CREATE TABLE IF NOT EXISTS commit_git_shas (
     PRIMARY KEY (commit_id, remote_id)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_commit_git_shas_sha ON commit_git_shas(git_sha);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commit_git_shas_remote_sha ON commit_git_shas(remote_id, git_sha);
 
 CREATE TABLE IF NOT EXISTS schema_version (
     version    INTEGER PRIMARY KEY,

@@ -34,11 +34,14 @@ import java.util.stream.Stream;
  * v10   → v11: adds {@code repos.origin_offset_{x,y,z,set}} — stable repo-space origin for
  *              coordinate translation. Four ALTER TABLE statements; safe to run on fresh installs
  *              (duplicate-column errors suppressed).
+ * v11   → v12: scopes {@code commit_git_shas} uniqueness to {@code (remote_id, git_sha)}.
+ *              Drops the global {@code git_sha} unique index so the same SHA can exist in
+ *              multiple local repos (each with its own remote row), matching real Git behaviour.
  */
 public final class SchemaMigrator {
 
     private static final String SCHEMA_RESOURCE = "/database/schema.sql";
-    private static final int CURRENT_VERSION = 11;
+    private static final int CURRENT_VERSION = 12;
 
     /**
      * Pulls the connection from {@code database} on every call so the strongly-held
@@ -134,6 +137,17 @@ public final class SchemaMigrator {
                 } catch (SQLException e) {
                     if (!e.getMessage().toLowerCase().contains("duplicate column name")) throw e;
                 }
+            }
+        }
+
+        if (existing < 12) {
+            // v11 → v12: replace the global git_sha unique index with a (remote_id, git_sha)
+            // scoped index so the same SHA can exist across independent local repos.
+            try (Statement st = conn.createStatement()) {
+                st.execute("DROP INDEX IF EXISTS idx_commit_git_shas_sha");
+            }
+            try (Statement st = conn.createStatement()) {
+                st.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_commit_git_shas_remote_sha ON commit_git_shas(remote_id, git_sha)");
             }
         }
 

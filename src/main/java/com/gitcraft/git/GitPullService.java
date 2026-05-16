@@ -29,6 +29,7 @@ import org.bukkit.plugin.Plugin;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -91,7 +92,7 @@ public final class GitPullService {
 
             gitRepoManager.setRemoteUrl(jgitRepo, remote.name(), remote.url());
             git.fetch()
-                    .setRemote(remote.url())
+                    .setRemote(remote.name())
                     .setCredentialsProvider(GitRepoManager.credentials(accessToken))
                     .call();
 
@@ -180,7 +181,10 @@ public final class GitPullService {
                             worldUuid, worldName, minX, minY, minZ, maxX, maxY, maxZ);
 
                     long newLocalId = commitDao.insert(record);
-                    shaDao.insert(newLocalId, remote.id(), rc.name());
+                    logger.info("pull sha record: repoId=" + repo.id() + " remoteId=" + remote.id()
+                            + " branch=" + branch.name() + "/" + branch.id()
+                            + " commitId=" + newLocalId + " sha=" + rc.name());
+                    shaDao.strictInsert(newLocalId, remote.id(), rc.name());
                     shaToLocal.put(rc.name(), newLocalId);
 
                     lastRecord = new CommitRecord(
@@ -211,6 +215,14 @@ public final class GitPullService {
             if (lastRecord != null) {
                 headDao.upsert(new HeadRecord(playerId, repo.id(), branch.id(), lastRecord.id()));
             }
+
+            // Advance the local JGit branch ref to the pulled tip so the next push fast-forwards.
+            // Without this, refs/heads/<branch> stays at the pre-pull SHA and the next commit
+            // would be built on the wrong parent, causing a non-fast-forward rejection.
+            RefUpdate ru = jgitRepo.updateRef("refs/heads/" + branch.name());
+            ru.setNewObjectId(remoteTip);
+            ru.setForceUpdate(true);
+            ru.update();
 
             // Re-read repo to get the effective offset — setOffset may have just set it.
             RepoRecord freshRepo = repoDao.findById(repo.id()).orElse(null);

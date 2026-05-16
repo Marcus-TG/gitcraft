@@ -24,6 +24,12 @@ public final class Database {
         this.plugin = plugin;
     }
 
+    /** Test-only: wraps an existing connection; do not call open() or close(). */
+    Database(Connection connection) {
+        this.plugin = null;
+        this.connection = connection;
+    }
+
     public void open() throws SQLException, IOException {
         Path dbPath = plugin.gitCraftConfig().databaseFile();
         Path parent = dbPath.getParent();

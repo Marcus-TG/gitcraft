@@ -59,17 +59,16 @@ public final class GitPushService {
                         CommitDao commitDao, CommitGitShaDao shaDao,
                         GitRepoManager gitRepoManager, Path schematicsDir) throws Exception {
 
-        // Resolve repo name from the remote's repo_id — we receive it via ownerName + branchName
-        // enough to reconstruct the working tree via ownerUuid + we pass repo name from caller.
-        // (The caller passes ownerName here as the repo name for simplicity — see PushSubcommand.)
+        // (The caller passes ownerName here as the repo name — see PushSubcommand.)
         try (Repository repo = gitRepoManager.openOrInit(ownerUuid, ownerName);
              Git git = new Git(repo)) {
 
             GitRepoManager.checkoutOrCreateBranch(git, branchName);
 
-            // Record pre-push HEAD so we can roll back if remote push fails
             ObjectId prePushHead = repo.resolve("HEAD");
 
+            logger.info("push lookup: repoId=" + remote.repoId() + " remoteId=" + remote.id()
+                    + " remoteName=" + remote.name() + " branchId=" + branchId);
             List<Long> unpushedIds = shaDao.findUnpushedCommitIds(branchId, remote.id());
             if (unpushedIds.isEmpty()) {
                 send(plugin, playerId, String.format(Messages.PUSH_NOTHING_TO_PUSH, remote.name()));
@@ -79,15 +78,13 @@ public final class GitPushService {
             send(plugin, playerId,
                     String.format(Messages.PUSH_IN_PROGRESS, unpushedIds.size(), remote.name(), branchName));
 
-            // Build Git commits in memory — don't record SHAs until remote push succeeds
-            List<long[]> commitIdAndSha = new ArrayList<>(); // [commitId, sha as placeholder via list]
+            List<long[]> commitIds = new ArrayList<>();
             List<String> shas = new ArrayList<>();
 
             for (long commitId : unpushedIds) {
                 Optional<String> existingSha = shaDao.findAnyShaForCommit(commitId);
                 if (existingSha.isPresent()) {
-                    // This commit was already pushed to another remote — reuse the Git SHA
-                    commitIdAndSha.add(new long[]{commitId});
+                    commitIds.add(new long[]{commitId});
                     shas.add(existingSha.get());
                     continue;
                 }
@@ -97,32 +94,42 @@ public final class GitPushService {
 
                 Path schemPath = Path.of(record.schemPath());
 
-                // Resolve merge parent SHA if this is a merge commit
                 String mergeParentSha = null;
                 if (record.mergeParentCommitId() != null) {
                     mergeParentSha = shaDao.findAnyShaForCommit(record.mergeParentCommitId()).orElse(null);
                 }
 
                 String sha = mapper.createGitCommit(git, record, branchName, schemPath, mergeParentSha);
-                commitIdAndSha.add(new long[]{commitId});
+                commitIds.add(new long[]{commitId});
                 shas.add(sha);
             }
 
-            // Push to remote — all Git commits are now local
+            // The SHA we expect the remote branch tip to point at after a successful push.
+            String expectedTipSha = shas.isEmpty() ? null : shas.get(shas.size() - 1);
+
             gitRepoManager.setRemoteUrl(repo, remote.name(), remote.url());
             Iterable<PushResult> results = git.push()
                     .setRemote(remote.url())
                     .setCredentialsProvider(GitRepoManager.credentials(accessToken))
                     .call();
 
-            // Check for rejection
             for (PushResult result : results) {
                 for (RemoteRefUpdate update : result.getRemoteUpdates()) {
                     RemoteRefUpdate.Status status = update.getStatus();
+                    logger.info("push status: " + status + " for " + update.getRemoteName());
                     if (status == RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD) {
-                        rollback(git, prePushHead);
-                        send(plugin, playerId,
-                                String.format(Messages.PUSH_REJECTED_NOT_FAST_FORWARD, remote.name()));
+                        // REJECTED_NONFASTFORWARD can be a false positive: GitHub may have accepted
+                        // the commits while JGit's local state was stale. Fetch and confirm.
+                        if (remoteTipMatchesAfterFetch(git, repo, remote, branchName, accessToken, expectedTipSha)) {
+                            recordShas(commitIds, shas, remote, shaDao);
+                            send(plugin, playerId,
+                                    String.format(Messages.PUSH_SUCCESS, unpushedIds.size(), remote.name(), branchName));
+                            logger.info("push nff recovered: recorded " + commitIds.size() + " SHA(s)");
+                        } else {
+                            rollback(git, prePushHead);
+                            send(plugin, playerId,
+                                    String.format(Messages.PUSH_REJECTED_NOT_FAST_FORWARD, remote.name()));
+                        }
                         return;
                     }
                     if (status == RemoteRefUpdate.Status.REJECTED_OTHER_REASON) {
@@ -138,13 +145,44 @@ public final class GitPushService {
                 }
             }
 
-            // Push succeeded — now record SHAs
-            for (int i = 0; i < commitIdAndSha.size(); i++) {
-                shaDao.insert(commitIdAndSha.get(i)[0], remote.id(), shas.get(i));
-            }
-
+            // Normal success path.
+            recordShas(commitIds, shas, remote, shaDao);
             send(plugin, playerId,
                     String.format(Messages.PUSH_SUCCESS, unpushedIds.size(), remote.name(), branchName));
+        }
+    }
+
+    /**
+     * Fetches from the remote (updating tracking refs) then checks whether
+     * {@code refs/remotes/<remoteName>/<branchName>} equals {@code expectedTipSha}.
+     * Returns true only when both are non-null and equal — used to recover from a false
+     * REJECTED_NONFASTFORWARD where the remote actually accepted our commits.
+     */
+    private boolean remoteTipMatchesAfterFetch(Git git, Repository repo, RemoteRecord remote,
+                                               String branchName, String accessToken,
+                                               String expectedTipSha) throws GitAPIException, IOException {
+        git.fetch()
+                .setRemote(remote.name())
+                .setCredentialsProvider(GitRepoManager.credentials(accessToken))
+                .call();
+        ObjectId remoteTip = repo.resolve("refs/remotes/" + remote.name() + "/" + branchName);
+        String remoteTipSha = remoteTip != null ? remoteTip.name() : null;
+        logger.info("push nff recovery: expectedTipSha=" + expectedTipSha + " remoteTipSha=" + remoteTipSha);
+        return expectedTipSha != null && expectedTipSha.equals(remoteTipSha);
+    }
+
+    /** Records commit→SHA rows after a successful push (normal or recovered). */
+    private void recordShas(List<long[]> commitIds, List<String> shas,
+                            RemoteRecord remote, CommitGitShaDao shaDao) throws SQLException {
+        for (int i = 0; i < commitIds.size(); i++) {
+            long cid = commitIds.get(i)[0];
+            String sha = shas.get(i);
+            int rows = shaDao.insert(cid, remote.id(), sha);
+            if (rows == 0) {
+                logger.warning("push sha record: row already existed for commitId=" + cid
+                        + " remoteId=" + remote.id() + " sha=" + sha
+                        + " — possible future duplicate push");
+            }
         }
     }
 

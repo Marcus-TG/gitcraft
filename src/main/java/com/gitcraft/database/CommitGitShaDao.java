@@ -9,8 +9,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.logging.Logger;
 
 public final class CommitGitShaDao {
+
+    private static final Logger log = Logger.getLogger(CommitGitShaDao.class.getName());
 
     private final Database database;
 
@@ -18,10 +21,27 @@ public final class CommitGitShaDao {
         this.database = database;
     }
 
-    public void insert(long commitId, long remoteId, String gitSha) throws SQLException {
+    /** Inserts with OR IGNORE. Returns 1 if inserted, 0 if silently skipped due to constraint. */
+    public int insert(long commitId, long remoteId, String gitSha) throws SQLException {
         Connection conn = database.connection();
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT OR IGNORE INTO commit_git_shas(commit_id, remote_id, git_sha) VALUES (?, ?, ?)")) {
+            ps.setLong(1, commitId);
+            ps.setLong(2, remoteId);
+            ps.setString(3, gitSha);
+            return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Inserts without OR IGNORE — throws SQLException on any constraint violation.
+     * Use in clone/pull import paths so a duplicate is caught and the transaction rolled back
+     * instead of leaving commits silently untracked.
+     */
+    public void strictInsert(long commitId, long remoteId, String gitSha) throws SQLException {
+        Connection conn = database.connection();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO commit_git_shas(commit_id, remote_id, git_sha) VALUES (?, ?, ?)")) {
             ps.setLong(1, commitId);
             ps.setLong(2, remoteId);
             ps.setString(3, gitSha);
@@ -55,11 +75,12 @@ public final class CommitGitShaDao {
         return Optional.empty();
     }
 
-    public Optional<Long> findCommitIdBySha(String gitSha) throws SQLException {
+    public Optional<Long> findCommitIdBySha(long remoteId, String gitSha) throws SQLException {
         Connection conn = database.connection();
         try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT commit_id FROM commit_git_shas WHERE git_sha = ?")) {
-            ps.setString(1, gitSha);
+                "SELECT commit_id FROM commit_git_shas WHERE remote_id = ? AND git_sha = ?")) {
+            ps.setLong(1, remoteId);
+            ps.setString(2, gitSha);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return Optional.of(rs.getLong(1));
             }
@@ -73,6 +94,27 @@ public final class CommitGitShaDao {
      */
     public List<Long> findUnpushedCommitIds(long branchId, long remoteId) throws SQLException {
         Connection conn = database.connection();
+
+        int totalOnBranch = 0;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM commits WHERE branch_id = ?")) {
+            ps.setLong(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) totalOnBranch = rs.getInt(1);
+            }
+        }
+
+        int shaRows = 0;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM commit_git_shas s JOIN commits c ON c.id = s.commit_id " +
+                "WHERE c.branch_id = ? AND s.remote_id = ?")) {
+            ps.setLong(1, branchId);
+            ps.setLong(2, remoteId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) shaRows = rs.getInt(1);
+            }
+        }
+
         List<Long> ids = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT c.id FROM commits c " +
@@ -85,6 +127,11 @@ public final class CommitGitShaDao {
                 while (rs.next()) ids.add(rs.getLong(1));
             }
         }
+
+        log.info("findUnpushedCommitIds branchId=" + branchId + " remoteId=" + remoteId
+                + " totalOnBranch=" + totalOnBranch + " shaRows=" + shaRows
+                + " unpushed=" + ids.size());
+
         return ids;
     }
 

@@ -160,6 +160,10 @@ public final class GitCloneService {
 
                 try (RevWalk rw = new RevWalk(jgitRepo)) {
                     for (RevCommit rc : ordered) {
+                        // Safety guard: skip any commit already imported (e.g. shared history
+                        // collected across multiple branches before the walk break fires).
+                        if (shaToLocal.containsKey(rc.name())) continue;
+
                         rw.parseBody(rc);
 
                         Map<String, String> meta = mapper.readMetadataFromCommit(jgitRepo, rc, rw);
@@ -196,7 +200,10 @@ public final class GitCloneService {
                                 worldUuid, worldName, minX, minY, minZ, maxX, maxY, maxZ);
 
                         long newLocalId = commitDao.insert(record);
-                        shaDao.insert(newLocalId, remoteId, rc.name());
+                        logger.info("clone sha record: repoId=" + repoId + " remoteId=" + remoteId
+                                + " branch=" + branchName + "/" + branchId
+                                + " commitId=" + newLocalId + " sha=" + rc.name());
+                        shaDao.strictInsert(newLocalId, remoteId, rc.name());
                         shaToLocal.put(rc.name(), newLocalId);
                         totalCommits++;
 
@@ -306,39 +313,35 @@ public final class GitCloneService {
     }
 
     private String guessDefaultBranch(Repository repo, List<Ref> remoteBranches) throws IOException {
-        // Try HEAD symbolic ref first
-        org.eclipse.jgit.lib.Ref headRef = repo.findRef("refs/remotes/origin/HEAD");
-        if (headRef != null && headRef.getTarget() != null) {
+        // Only follow refs/remotes/origin/HEAD when it is a proper symbolic ref — a direct ref
+        // resolves to itself and would produce "HEAD" as the branch name.
+        String remotePrefix = "refs/remotes/origin/";
+        org.eclipse.jgit.lib.Ref headRef = repo.findRef(remotePrefix + "HEAD");
+        if (headRef != null && headRef.isSymbolic()) {
             String target = headRef.getTarget().getName();
-            String prefix = "refs/remotes/origin/";
-            if (target.startsWith(prefix)) return target.substring(prefix.length());
-        }
-        // Fallback: prefer "main", then "master", then first in list
-        for (String preferred : new String[]{BranchConstants.DEFAULT_BRANCH, "master"}) {
-            for (Ref r : remoteBranches) {
-                if (r.getName().endsWith("/" + preferred)) return preferred;
+            if (target.startsWith(remotePrefix)) {
+                String name = target.substring(remotePrefix.length());
+                if (!name.equals("HEAD")) return name;
             }
         }
-        if (!remoteBranches.isEmpty()) {
-            String name = remoteBranches.get(0).getName();
-            int slash = name.lastIndexOf('/');
-            return slash >= 0 ? name.substring(slash + 1) : name;
+        // Fallback: prefer "main", then "master" — match exact remote-tracking ref name.
+        for (String preferred : new String[]{BranchConstants.DEFAULT_BRANCH, "master"}) {
+            for (Ref r : remoteBranches) {
+                if (r.getName().equals(remotePrefix + preferred)) return preferred;
+            }
+        }
+        // Last resort: first real remote-tracking branch that isn't HEAD.
+        for (Ref r : remoteBranches) {
+            String name = r.getName();
+            if (name.startsWith(remotePrefix) && !name.equals(remotePrefix + "HEAD")) {
+                return name.substring(remotePrefix.length());
+            }
         }
         return BranchConstants.DEFAULT_BRANCH;
     }
 
-    private List<String> orderedBranchNames(List<Ref> remoteBranches, String defaultBranchName) {
-        List<String> names = new ArrayList<>();
-        names.add(defaultBranchName); // default first
-        for (Ref r : remoteBranches) {
-            String name = r.getName();
-            int slash = name.lastIndexOf('/');
-            String branchName = slash >= 0 ? name.substring(slash + 1) : name;
-            if (!branchName.equals(defaultBranchName) && !branchName.equals("HEAD")) {
-                names.add(branchName);
-            }
-        }
-        return names;
+    private static List<String> orderedBranchNames(List<Ref> remoteBranches, String defaultBranchName) {
+        return GitBranchNames.orderedBranchNames(remoteBranches, defaultBranchName);
     }
 
     private static void deleteDirectory(Path dir) throws IOException {
