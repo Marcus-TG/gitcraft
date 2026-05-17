@@ -1,5 +1,6 @@
 package com.gitcraft.database;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -92,6 +93,116 @@ public final class RepoDao {
             }
         }
         return out;
+    }
+
+    /**
+     * Deletes a repo and all its data in one transaction. Returns the deleted repo's info
+     * (branch IDs needed for filesystem cleanup), or empty if not found or not owned by the caller.
+     * Must run on the async scheduler.
+     */
+    public Optional<DeletedRepoInfo> deleteOwnedRepo(UUID ownerUuid, String repoName) throws SQLException {
+        Connection conn = database.connection();
+        boolean prevAuto = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        try {
+            long repoId;
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT id FROM repos WHERE owner_uuid = ? AND name = ?")) {
+                ps.setString(1, ownerUuid.toString());
+                ps.setString(2, repoName);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        conn.commit();
+                        return Optional.empty();
+                    }
+                    repoId = rs.getLong("id");
+                }
+            }
+
+            List<Long> branchIds = new ArrayList<>();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT id FROM branches WHERE repo_id = ?")) {
+                ps.setLong(1, repoId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) branchIds.add(rs.getLong("id"));
+                }
+            }
+
+            if (!branchIds.isEmpty()) {
+                String ph = placeholders(branchIds.size());
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM commit_git_shas WHERE commit_id IN " +
+                        "(SELECT id FROM commits WHERE branch_id IN (" + ph + "))")) {
+                    for (int i = 0; i < branchIds.size(); i++) ps.setLong(i + 1, branchIds.get(i));
+                    ps.executeUpdate();
+                }
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM stashes WHERE repo_id = ?")) {
+                ps.setLong(1, repoId);
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM remotes WHERE repo_id = ?")) {
+                ps.setLong(1, repoId);
+                ps.executeUpdate();
+            }
+
+            // heads.commit_id → commits: must delete heads before commits
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM heads WHERE repo_id = ?")) {
+                ps.setLong(1, repoId);
+                ps.executeUpdate();
+            }
+
+            if (!branchIds.isEmpty()) {
+                String ph = placeholders(branchIds.size());
+                // branches.fork_commit_id → commits: must clear before deleting commits
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE branches SET fork_commit_id = NULL WHERE repo_id = ?")) {
+                    ps.setLong(1, repoId);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM commits WHERE branch_id IN (" + ph + ")")) {
+                    for (int i = 0; i < branchIds.size(); i++) ps.setLong(i + 1, branchIds.get(i));
+                    ps.executeUpdate();
+                }
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM branches WHERE repo_id = ?")) {
+                ps.setLong(1, repoId);
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM repos WHERE id = ?")) {
+                ps.setLong(1, repoId);
+                ps.executeUpdate();
+            }
+
+            conn.commit();
+            return Optional.of(new DeletedRepoInfo(repoId, branchIds, ownerUuid, repoName));
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(prevAuto);
+        }
+    }
+
+    public record DeletedRepoInfo(long repoId, List<Long> branchIds, UUID ownerUuid, String repoName) {}
+
+    private static String placeholders(int count) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            if (i > 0) sb.append(',');
+            sb.append('?');
+        }
+        return sb.toString();
     }
 
     private RepoRecord map(ResultSet rs) throws SQLException {

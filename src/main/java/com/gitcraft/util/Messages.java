@@ -48,8 +48,8 @@ public final class Messages {
     public static final String HELP_CHERRYPICK_DESC = "Applies one commit onto your current branch with conflict resolution.";
     public static final String HELP_STASH_USAGE = "Usage: /gc stash [pop|list]";
     public static final String HELP_STASH_DESC = "Saves, lists, or restores selection state for the current repo.";
-    public static final String HELP_REPOS_USAGE = "Usage: /gc repos";
-    public static final String HELP_REPOS_DESC = "Lists your GitCraft repos.";
+    public static final String HELP_REPOS_USAGE = "Usage: /gc repos | /gc repos delete <name>";
+    public static final String HELP_REPOS_DESC = "Lists your GitCraft repos, or permanently deletes one (local only — GitHub repo is not affected).";
     public static final String HELP_LOGIN_USAGE = "Usage: /gc login";
     public static final String HELP_LOGIN_DESC = "Starts GitHub device login for remote sync.";
     public static final String HELP_LOGOUT_USAGE = "Usage: /gc logout";
@@ -232,6 +232,13 @@ public final class Messages {
     public static final String REPOS_ROW      = "%s  branches: %d  created: %s";
     public static final String REPOS_EMPTY    = "You have no repos. Use /gitcraft init <name> to create one.";
     public static final String REPOS_DB_ERROR = "Failed to list repos: %s";
+
+    public static final String REPOS_DELETE_WARN             = "WARNING: This will permanently delete repo '%s' (all commits, schematics, and local git data). This cannot be undone and does NOT delete any GitHub repository. Run the same command again within 30 seconds to confirm.";
+    public static final String REPOS_DELETE_SUCCESS           = "Repo '%s' deleted.";
+    public static final String REPOS_DELETE_FS_WARN           = "Repo '%s' deleted from database, but some files could not be removed: %s";
+    public static final String REPOS_DELETE_NOT_FOUND         = "No repo named '%s' found.";
+    public static final String REPOS_DELETE_DB_ERROR          = "Delete failed (database error): %s";
+    public static final String REPOS_DELETE_BLOCKED_ACTIVE_OP = "Cannot delete a repo while a merge or cherry-pick is in progress. Finish or abort the operation first.";
 
     public static final String STASH_NO_REPO          = "No active repo. Use /gitcraft open <name> first.";
     public static final String STASH_INVALID_MESSAGE  = "Stash message cannot contain newlines.";
